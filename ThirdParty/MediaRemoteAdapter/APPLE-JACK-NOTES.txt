@@ -1,0 +1,18 @@
+Source: https://github.com/ungive/mediaremote-adapter
+Revision: 0e82bf1c44ec39554fbfc402ec88a48c6ae2a0fd
+
+License: BSD-3-Clause. LICENSE is shipped in Apple Jack Resources.
+The original source is vendored here for reproducible builds. Build script:
+Scripts/build.py. Get/stream/send and their dependencies
+are compiled; seek, shuffle, repeat, speed and test executables are not.
+The app invokes the metadata stream and Back/Play-Pause/Forward transport
+commands through the macOS /usr/bin/perl loader. Transport commands use
+short-lived processes with bounded timeouts and no automatic retries.
+Media buttons no longer synthesize keyboard events or require post-event
+Accessibility/Device Control permission.
+An Apple Jack parent-exit monitor is compiled alongside the upstream files.
+No SIP changes, private entitlement forgery, downloaded binaries, or system
+file modifications are used. Metadata stays local. Artwork is read from embedded
+system data and downsampled, with no app-side network artwork requests.
+This uses Apple's private MediaRemote APIs, which may change in OS updates.
+Revisit the backend before App Store distribution or macOS changes.

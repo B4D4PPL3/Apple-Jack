@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppleJackControlScheme</key>
+	<string>applejack-public</string>
+	<key>AppleJackReleaseChannel</key>
+	<string>stable</string>
+	<key>CFBundleDisplayName</key>
+	<string>Apple Jack Public</string>
+	<key>CFBundleExecutable</key>
+	<string>AppleJack</string>
+	<key>CFBundleIconFile</key>
+	<string>AppleJackMac.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.fonz.applejack.public</string>
+	<key>CFBundleName</key>
+	<string>Apple Jack Public</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.51</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Apple Jack Public Controls</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>applejack-public</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>114</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Apple Jack controls your selected media app and reveals the playing Safari tab.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Apple Jack uses your microphone only when you choose Speak to Jack, to capture your spoken request.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Apple Jack turns your spoken request into text. Apple speech recognition may process audio on Apple servers when on-device recognition is unavailable.</string>
+</dict>
+</plist>

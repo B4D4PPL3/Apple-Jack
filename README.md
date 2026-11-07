@@ -1,0 +1,43 @@
+# Apple Jack
+
+Apple Jack is an animated desktop companion for macOS. Click the character to open a speech bubble, type an app name or website to launch it, or drop a file onto Jack to hold it for later. The bubble includes media controls, clipboard history, favorites, and optional AI responses. Apple Jack and Fonz are included.
+
+## Install
+
+Apple Jack 0.51 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
+
+1. Download `Apple-Jack-0.51-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.51 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1).
+2. Open the disk image, drag **Apple Jack Public** into **Applications**, and open it from there.
+3. If macOS says it cannot verify the developer and you trust this download, open **System Settings → Privacy & Security** and choose **Open Anyway** for Apple Jack Public. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
+
+You can find the setup guide in Jack’s menu. This preview uses manual updates. [Check GitHub Releases for updates](https://github.com/B4D4PPL3/Apple-Jack/releases).
+
+Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. Local desktop features work without an AI account.
+
+## Build from source
+
+Use Python 3.9 or newer and Apple's Command Line Tools or Xcode with a current macOS SDK. From the repository root run
+
+```sh
+python3 Scripts/build.py
+open "build/Apple Jack Public.app"
+```
+
+To build a local test disk image, run `python3 Scripts/package.py`. The image and its SHA-256 checksum appear in `dist/local/`. Local builds use ad-hoc signing. The verified distribution process is documented in [RELEASING.md](RELEASING.md).
+
+## Check the public updater
+
+The release tests use a simulated HTTPS response and a temporary disk image fixture. Run them after building.
+
+```sh
+xcrun swiftc -parse-as-library Sources/UpdateRelease.swift Sources/GitHubUpdates.swift Tests/PublicUpdates.swift -o build/PublicUpdatesTests
+build/PublicUpdatesTests
+```
+
+## Data and permissions
+
+Favorites, imported pets, held items, and clipboard history live under `~/Library/Application Support/Apple Jack Public/`. Conversation memory, when enabled, lasts for the current session. Clipboard history can be paused or cleared. Dictation requests microphone and speech access. Revealing a playing Safari tab can request Automation permission. Choosing an AI backend sends the request and enabled conversation context to that backend. Pet discovery uses installed pet folders and can request pets from the signed-in ChatGPT account. The public updater contacts GitHub.
+
+## Licenses
+
+Original code and documentation use the [MIT license](LICENSE). The bundled characters and app icon have [separate artwork terms](ARTWORK.md). MediaRemoteAdapter ships under [BSD-3-Clause](ThirdParty/MediaRemoteAdapter/LICENSE). It uses macOS private media APIs, so Now Playing availability can vary by player and OS version.
