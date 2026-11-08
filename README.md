@@ -4,7 +4,7 @@
 
 Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your companion to chat with ChatGPT in its speech bubble, pause your music, or find a link you copied earlier. To move a file between windows, drop it onto your companion, switch windows, and drag it out where you need it.
 
-![Apple Jack beside his speech bubble, with playback controls, a sample playlist question, and the Control–Shift–Space shortcut.](Docs/Screenshots/desktop.jpg)
+![Apple Jack stands with his arms crossed beneath his speech bubble, which shows playback controls and a sample playlist conversation. Control–Shift–Space opens the bubble.](Docs/Screenshots/desktop.jpg)
 
 **[Download the 0.51 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
@@ -22,7 +22,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 Drop files, images, links, or text onto either character. Drag them back out when you need them, or select a thumbnail and press **Space** for a preview.
 
-![Detail of the Hold This shelf above Apple Jack with a track list, a music link, and a text note. Space previews the selected item.](Docs/Screenshots/hold-this.jpg)
+![Apple Jack waves beneath the Hold This shelf, which contains a track list, a music link, and a note. Space previews the selected item.](Docs/Screenshots/hold-this.jpg)
 
 ### Conversation history
 
