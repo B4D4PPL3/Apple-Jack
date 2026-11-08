@@ -1,6 +1,8 @@
 # Apple Jack
 
-Bring a pet you designed in ChatGPT onto your Mac desktop. Click your character, ask a question, and read ChatGPT’s reply in its speech bubble. Apple Jack and Fonz come with the app, so you can try it before importing a pet of your own.
+**A customizable desktop companion for macOS with AI chat and everyday Mac tools.**
+
+Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your companion to chat with ChatGPT in its speech bubble, pause your music, or find a link you copied earlier. To move a file between windows, drop it onto your companion, switch windows, and drag it out where you need it.
 
 ![Apple Jack beside his speech bubble, with playback controls, a sample playlist question, and the Control–Shift–Space shortcut.](Docs/Screenshots/desktop.jpg)
 
