@@ -14,7 +14,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 **Bring your own character.** Open **Menu → Appearance & Character → Pets → Import ChatGPT Pet…** to preview and select a pet. If you have your own artwork in the ChatGPT pet sprite-sheet format, select **Choose File…** and import the PNG or WebP. Your character uses its own animations, including running when you drag it across the desktop. To keep new pets available as you add them, turn on **Automatically Import All ChatGPT Pets** in the same menu.
 
-![The Import ChatGPT Pet window previews Fonz as a custom pet. Beside it, Fonz waves, jumps, and runs using frames from his sprite sheet.](Docs/Screenshots/chatgpt-pets.jpg)
+![ChatGPT companions. Fonz is selected in the Import ChatGPT Pet window and shown waving, jumping, and running.](Docs/Screenshots/chatgpt-pets.jpg)
 
 **Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → AI Assistant → AI Setup Guide** and follow the steps to create the **Ask Apple Jack (ChatGPT)** shortcut. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
