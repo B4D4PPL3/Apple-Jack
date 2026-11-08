@@ -1,10 +1,16 @@
 # Apple Jack
 
+Bring a pet you designed in ChatGPT onto your Mac desktop. Click your character, ask a question, and read ChatGPT’s reply in its speech bubble. Apple Jack and Fonz come with the app, so you can try it before importing a pet of your own.
+
 ![Apple Jack beside his speech bubble, with playback controls, a sample playlist question, and the Control–Shift–Space shortcut.](Docs/Screenshots/desktop.jpg)
 
-Click Apple Jack or Fonz to open a conversation, control your music, launch an app, or hold a file between windows. Both characters come with the app.
-
 **[Download the 0.51 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+
+## ChatGPT and custom pets
+
+**Bring your own character.** Open **Menu → Appearance & Character → Pets → Import ChatGPT Pet…** to preview and select a pet. If you have your own artwork in the ChatGPT pet sprite-sheet format, select **Choose File…** and import the PNG or WebP. Your character uses its own animations, including running when you drag it across the desktop. To keep new pets available as you add them, turn on **Automatically Import All ChatGPT Pets** in the same menu.
+
+**Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → AI Assistant → AI Setup Guide** and follow the steps to create the **Ask Apple Jack (ChatGPT)** shortcut. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
 ## Feature gallery
 
