@@ -55,7 +55,7 @@ def package(args):
             run("ditto","-c","-k","--keepParent",copy,archive)
             notarize(archive,copy,args.notary_profile)
         (contents/"Applications").symlink_to("/Applications")
-        shutil.copyfile(root/"Resources/Setup.html",contents/"Getting Started.html")
+        shutil.copyfile(copy/"Contents/Resources/Setup.html",contents/"Getting Started.html")
         for item in ["LICENSE","ARTWORK.md"]:
             shutil.copyfile(root/item,contents/item)
         shutil.copyfile(root/"ThirdParty/MediaRemoteAdapter/LICENSE",contents/"MediaRemoteAdapter License.txt")

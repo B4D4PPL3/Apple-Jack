@@ -6,7 +6,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 ![Apple Jack stands with his arms crossed beneath his speech bubble, which shows playback controls and a sample playlist conversation. Control–Shift–Space opens the bubble.](Docs/Screenshots/desktop.jpg)
 
-**[Download the 0.51 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+**[Download the 0.52 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.52-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
 ## Feature gallery
 
@@ -16,7 +16,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 ![ChatGPT companions. Fonz is selected in the Import ChatGPT Pet window and shown waving, jumping, and running.](Docs/Screenshots/chatgpt-pets.jpg)
 
-**Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → AI Assistant → AI Setup Guide** and follow the steps to create the **Ask Apple Jack (ChatGPT)** shortcut. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
+**Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → Shortcuts → Set Up Shortcuts…** and add **Ask Apple Jack (ChatGPT)**. If it says **Already Added**, you’re ready to use it. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
 ### Hold This
 
@@ -38,15 +38,15 @@ Enable **Clipboard** to save recent copies on your Mac. Select a text entry to p
 
 ## Install
 
-Apple Jack 0.51 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
+Apple Jack 0.52 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
 
-1. Download `Apple-Jack-0.51-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.51 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1).
+1. Download `Apple-Jack-0.52-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.52 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.52-preview.1).
 2. Open the disk image, drag **Apple Jack Public** into **Applications**, and open it from there.
 3. If macOS says it cannot verify the developer and you trust this download, open **System Settings → Privacy & Security** and choose **Open Anyway** for Apple Jack Public. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
 
-You can find the setup guide in Jack’s menu. This preview uses manual updates. [Check GitHub Releases for updates](https://github.com/B4D4PPL3/Apple-Jack/releases).
+To update from 0.51, quit Apple Jack Public and replace the previous copy in Applications. The illustrated Setup Guide is available from Jack’s menu. This preview uses manual updates. [Check GitHub Releases for updates](https://github.com/B4D4PPL3/Apple-Jack/releases).
 
-Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. Local desktop features work without an AI account.
+Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. For Claude, open **Menu → AI Assistant → Claude Code Setup…**, sign in through Claude Code with an eligible account, and choose **Claude (Beta)**. Replies appear in Jack’s bubble using your Claude Code account. Local desktop features work without an AI account.
 
 ## Build from source
 

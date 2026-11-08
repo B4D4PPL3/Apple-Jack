@@ -2,6 +2,7 @@ import Foundation
 
 enum AIBackend: String, CaseIterable {
     case shortcut, chatGPT, codex
+    case claude
 
     static var selected: AIBackend {
         get {
@@ -17,6 +18,7 @@ enum AIBackend: String, CaseIterable {
         case .shortcut: return "Current Shortcut"
         case .chatGPT: return "ChatGPT"
         case .codex: return "Codex"
+        case .claude: return "Claude (Beta)"
         }
     }
 

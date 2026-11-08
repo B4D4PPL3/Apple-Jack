@@ -4,14 +4,14 @@ Publish only when the maintainer has signed off on a stable version and separate
 
 ## Unnotarized preview
 
-For the approved 0.51 preview, use the verified public-edition disk image from `dist/local/`. Copy it as `Apple-Jack-0.51-preview-macOS.dmg`. From the directory containing the copy, run:
+For the approved 0.52 preview, use the verified public-edition disk image from `dist/local/`. Copy it as `Apple-Jack-0.52-preview-macOS.dmg`. From the directory containing the copy, run:
 
 ```sh
-shasum -a 256 Apple-Jack-0.51-preview-macOS.dmg > Apple-Jack-0.51-preview-macOS.dmg.sha256
-shasum -a 256 -c Apple-Jack-0.51-preview-macOS.dmg.sha256
+shasum -a 256 Apple-Jack-0.52-preview-macOS.dmg > Apple-Jack-0.52-preview-macOS.dmg.sha256
+shasum -a 256 -c Apple-Jack-0.52-preview-macOS.dmg.sha256
 ```
 
-Create a GitHub Release for tag `v0.51-preview.1` from the public source commit and select **Set as a pre-release**. Attach the DMG and checksum. Include the first-launch instructions from the README and explain that preview updates are manual. Verify the checksum against a fresh download after publishing.
+Create a GitHub Release for tag `v0.52-preview.1` from the public source commit and select **Set as a pre-release**. Attach the DMG and checksum. Include the first-launch instructions from the README and explain that preview updates are manual. Verify the checksum against a fresh download after publishing.
 
 ## Notarized release
 

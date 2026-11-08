@@ -1,15 +1,52 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Apple Jack setup</title>
-<style>:root{color-scheme:light dark}body{font:17px/1.55 system-ui;max-width:44rem;margin:3rem auto;padding:0 1.25rem}h1,h2{line-height:1.2}kbd,code{font-size:.9em}</style>
-<h1>Getting started with Apple Jack</h1>
-<p>Drag Apple Jack Public into Applications and open it. Click the character to open or close the speech bubble. Control–Shift–Space brings the bubble forward. You can change the shortcut in Jack’s menu.</p>
-<h2>Try Jack locally</h2>
-<p>Type an installed app name, paste a website, or enter a Finder path and press Return. Drag a file, link, or text onto Jack to hold it. Select a held link and press Space to preview the page or Return to open it in Safari. During media playback, click the waveform above Jack’s head to return to the source.</p>
-<h2>Set up an AI assistant</h2>
-<ol><li>Open Shortcuts and create a shortcut named <strong>Ask Apple Jack</strong>.</li><li>Add <strong>Get Text from Input</strong> and select the <strong>Shortcut Input</strong> variable.</li><li>Add <strong>Use Model</strong> on a Mac that offers Apple Intelligence. Include the output of the first action in the prompt. For example, type “Answer this request briefly” followed by the <strong>Text</strong> variable.</li><li>Add <strong>Stop and Output</strong> with the model’s <strong>Response</strong>. Test by typing a question in Jack’s bubble.</li></ol>
-<p>You can select a different text-in, text-out shortcut under Menu → Shortcuts → Shortcut Settings. For the ChatGPT option, select ChatGPT in the model action and name the shortcut <strong>Ask Apple Jack (ChatGPT)</strong>. You can also choose Codex if its command-line tool is installed and signed in. Model availability depends on your Mac, macOS version, and service account. Jack’s local tools work independently.</p>
-<h2>Voice and pets</h2>
-<p>Use <strong>Speak Response</strong> to hear a typed request’s answer, or <strong>Speak to Jack</strong> to dictate. macOS asks for microphone and speech-recognition access when you start dictating. To use a Siri voice through Shortcuts, create a shortcut with <strong>Speak Text</strong> set to Shortcut Input, choose the voice, then add <strong>Nothing</strong>. Select that shortcut under Jack’s voice settings.</p>
-<p>Under Menu → Appearance &amp; Character → Pets, choose Apple Jack, Fonz, or import a ChatGPT pet. The importer skips Documents. Clipboard history and held items are stored on this Mac. Pause or clear clipboard history from the Clipboard window.</p>
-<h2>Updates</h2>
-<p>The public edition checks the project’s published GitHub releases. Type <strong>update</strong> or choose Menu → Updates → Check for Updates. You can enable checks at startup. For a verified update, choose <strong>Install &amp; Restart</strong>. Development builds without a repository show that the release address has not been set.</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apple Jack Setup Guide</title>
+<style>
+:root { color-scheme: light dark; --paper: #fbfaf7; --ink: #192620; --muted: #48584d; --accent: #225d41; --rule: #d6ded5 }
+@media (prefers-color-scheme: dark) { :root { --paper: #101713; --ink: #eff4ed; --muted: #bbcabe; --accent: #b1e09d; --rule: #324439 } }
+* { box-sizing: border-box }
+body { max-width: 880px; margin: 48px auto 88px; padding: 0 28px; background: var(--paper); color: var(--ink); font: 17px/1.6 -apple-system,BlinkMacSystemFont,sans-serif }
+h1,h2 { line-height: 1.12; letter-spacing: -.035em } h1 { font-size: clamp(36px,6vw,56px); margin-bottom: 16px } h2 { margin: 2.5rem 0 .75rem }
+nav { display: flex; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--rule) }
+a { color: var(--accent); text-underline-offset: 3px } figure { margin: 20px 0 } img { display: block; width: 100%; height: auto; border-radius: 14px }
+figcaption { color: var(--muted); font-size: 14px; margin-top: 6px } li { margin: .5em 0 }
+</style>
+</head>
+<body>
+<h1>Apple Jack Setup Guide</h1>
+<p>Drag <strong>Apple Jack Public</strong> into Applications and open it. Click your companion or press <strong>Control–Shift–Space</strong> to bring up the speech bubble. Type an app name, website, or Finder path and press Return to open it.</p>
+<figure><img width="1440" height="795" src="../Docs/Screenshots/desktop.jpg" alt="Apple Jack stands with his arms crossed beneath his speech bubble and a sample playlist conversation."></figure>
+<nav aria-label="Feature guides"><a href="#shortcut-setup">Set Up Shortcuts</a><a href="#assistants">AI assistants</a><a href="#hold-this">Hold This</a><a href="#conversation">Conversation</a><a href="#clipboard">Clipboard</a></nav>
+<h2 id="shortcut-setup">Set up Shortcuts</h2>
+<p>Open <strong>Menu → Shortcuts → Set Up Shortcuts…</strong>. Click <strong>Add…</strong> beside a shortcut and confirm in the Shortcuts app. When you return, Jack checks your library. Choose <strong>Refresh</strong> to check again.</p>
+<ul>
+<li><strong>Ask Apple Jack</strong> answers questions with Apple Intelligence. Select <strong>Current Shortcut</strong> in Jack’s AI Assistant menu.</li>
+<li><strong>Ask Apple Jack (ChatGPT)</strong> uses the ChatGPT extension on a compatible Mac with Apple Intelligence enabled. Select <strong>ChatGPT</strong> in the same menu.</li>
+<li><strong>Siri Voice</strong> adds the speech shortcut named <strong>Jack Voice Test</strong>. Choose a voice in its Speak Text action, then select <strong>Menu → Speech &amp; Input → Voice → Siri via Shortcuts</strong>.</li>
+</ul>
+<figure><img width="1440" height="692" src="../Docs/Screenshots/shortcuts.jpg" alt="Set Up Shortcuts shows Ask Apple Jack, ChatGPT, and Siri Voice."><figcaption>Already Added means Jack found the shortcut or your configured equivalent on this Mac.</figcaption></figure>
+<h2 id="assistants">Choose an AI assistant</h2>
+<p>Open <strong>Menu → AI Assistant</strong>. You can use an installed text-in, text-out shortcut, ChatGPT through Apple Intelligence, or a signed-in Codex CLI. To change the shortcut used by Current Shortcut, open <strong>Menu → Shortcuts → Shortcut Settings…</strong>.</p>
+<h3>Claude (Beta)</h3>
+<p>Choose <strong>Claude Code Setup…</strong> in the AI Assistant menu. If you need Claude Code, choose <strong>Installation Guide</strong>. If it’s installed, choose <strong>Copy Sign-In Command</strong>, paste the command into Terminal, and finish signing in with an account that has Claude Code access. Then choose <strong>Claude (Beta)</strong> and ask a question.</p>
+<p>Jack passes the question and any enabled conversation context to Claude Code for a text reply. Your Claude account’s usage limits apply. Jack’s local tools work independently of your assistant.</p>
+<h2>Speak to Jack</h2>
+<p>Choose <strong>Speak Response</strong> to hear the answer to a typed question. Choose <strong>Speak to Jack</strong> to dictate a question and hear the reply. Both display the answer in the bubble. macOS asks for microphone and speech recognition access when you first dictate.</p>
+<h2>Choose your companion</h2>
+<p>Choose Apple Jack or Fonz under <strong>Menu → Appearance &amp; Character → Pets</strong>. Select <strong>Import ChatGPT Pet…</strong> to preview your own pets or import a sprite sheet. Enable <strong>Automatically Import All ChatGPT Pets</strong> to keep new companions available.</p>
+<h2 id="hold-this">Hold This</h2>
+<p>Drop a file, link, image, or text onto your companion to hold it. Drag the thumbnail out when you need it. Select a held item and press Space for a preview. With a web link selected, press Return to open it in Safari.</p>
+<figure><img width="1440" height="570" src="../Docs/Screenshots/hold-this.jpg" alt="Apple Jack waves below three thumbnails in Hold This."></figure>
+<h2 id="conversation">Conversation history</h2>
+<p>Click <strong>History</strong> below the input field and scroll up to revisit earlier messages. Enable <strong>Remember This Conversation</strong> to give your assistant context for follow-up questions. <strong>New Conversation</strong> starts a fresh exchange.</p>
+<figure><img width="1440" height="805" src="../Docs/Screenshots/conversation.jpg" alt="Two messages and their replies in the Conversation window."></figure>
+<h2 id="clipboard">Clipboard history</h2>
+<p>Open <strong>Clipboard</strong> to find a recent copy. Choose a text entry to copy it again, use it in Jack, or summarize, rewrite, or explain it with your assistant. You can pause or clear history from the Clipboard window.</p>
+<figure><img width="1440" height="632" src="../Docs/Screenshots/clipboard.jpg" alt="Clipboard history displays three entries and the contents of a selected note."></figure>
+<h2>Update the public preview</h2>
+<p>Download the new disk image from <a href="https://github.com/B4D4PPL3/Apple-Jack/releases">Apple Jack’s GitHub releases</a>. Quit Apple Jack Public, drag the new copy into Applications, and choose <strong>Replace</strong>. Your preferences and saved items stay on this Mac.</p>
+</body>
 </html>

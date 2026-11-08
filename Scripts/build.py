@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the public universal app from this checkout using Apple's command line tools."""
 import argparse
+from base64 import b64encode
 from pathlib import Path
 import plistlib
 import re
@@ -64,9 +65,17 @@ def build(output, identity, repository):
         for link, target in [("Versions/Current","A"),("Resources","Versions/Current/Resources"),("MediaRemoteAdapter","Versions/Current/MediaRemoteAdapter")]:
             (framework/link).symlink_to(target)
         dest = contents/"Resources"
-        for name in ["AppleJackMac.icns","Setup.html","applejack-media.pl"]:
+        for name in ["AppleJackMac.icns","applejack-media.pl"]:
             shutil.copyfile(resources/name,dest/name)
         shutil.copytree(resources/"Sprites",dest/"Sprites")
+        shutil.copytree(resources/"Shortcuts",dest/"Shortcuts")
+        # Embed guide images so the standalone copy on the disk image works offline too.
+        def embed_screenshot(match):
+            image = root / "Docs/Screenshots" / match.group(1)
+            return 'src="data:image/jpeg;base64,' + b64encode(image.read_bytes()).decode("ascii") + '"'
+        guide = (resources/"Setup.html").read_text()
+        guide = re.sub(r'src="[.][.]/Docs/Screenshots/([a-z-]+[.]jpg)"', embed_screenshot, guide)
+        (dest/"Setup.html").write_text(guide)
         shutil.copyfile(upstream/"bin/mediaremote-adapter.pl",dest/"mediaremote-adapter.pl")
         for path,name in [(upstream/"LICENSE","MediaRemoteAdapter-LICENSE.txt"),(root/"LICENSE","LICENSE.txt"),(root/"ARTWORK.md","ARTWORK.txt")]:
             shutil.copyfile(path,dest/name)

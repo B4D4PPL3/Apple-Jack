@@ -264,6 +264,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     var petView: PetView!
     var controls: SpeechBubble!
     var status: NSStatusItem!
+    private lazy var shortcutSetup = ShortcutSetup { [unowned self] in
+        [SetupShortcut(title: "Ask Apple Jack", fileName: "Ask Apple Jack", configuredName: self.shortcutName,
+                       detail: "Answer in Jack’s bubble with Apple Intelligence."),
+         SetupShortcut(title: "Ask Apple Jack (ChatGPT)", fileName: "Ask Apple Jack (ChatGPT)", configuredName: AIBackend.chatGPTShortcut,
+                       detail: "Answer with the Mac’s ChatGPT extension."),
+         SetupShortcut(title: "Siri Voice", fileName: "Jack Voice Test", configuredName: ReplyVoice.shortcutName,
+                       detail: "Read replies aloud with Siri via Shortcuts.")]
+    }
+    @objc private func setUpShortcuts() { shortcutSetup.show() }
     private let petPicker = PetPicker()
     private let petFrameName = "AppleJackPet"
     var shortcutName: String {
@@ -309,6 +318,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     let synthesizer = AVSpeechSynthesizer()
     let shortcutSpeech = ShortcutSpeech()
     let codexReply = CodexReply()
+    let claudeReply = ClaudeReply()
+    @objc private func claudeSetup() { ClaudeReply.showSetup() }
     let startAtLogin = StartAtLogin()
     let appUpdates = AppUpdates()
     private let heldItems = HoldThisStore()
@@ -338,7 +349,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     }()
     private var conversationRoute: String {
         let backend = AIBackend.selected
-        return backend.rawValue + ":" + (backend == .codex ? "" : backend == .chatGPT ? AIBackend.chatGPTShortcut : shortcutName)
+        switch backend {
+        case .claude, .codex: return backend.rawValue + ":"
+        case .chatGPT: return backend.rawValue + ":" + AIBackend.chatGPTShortcut
+        case .shortcut: return backend.rawValue + ":" + shortcutName
+        }
     }
     private let keyboardShortcut = KeyboardShortcutController()
     private var pendingShortcutReveal = false
@@ -362,7 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private var nativeOpenInProgress = false
     private var updateCommandInProgress = false
     private var generatingReply: Bool {
-        return replyShortcut.isActive || codexReply.isActive
+        return replyShortcut.isActive || codexReply.isActive || claudeReply.isActive
     }
     private var actionRequestIsRunning: Bool { generatingReply || nativeOpenInProgress }
     private var requestIsRunning: Bool { actionRequestIsRunning || updateCommandInProgress }
@@ -644,7 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         }
         responseActions.isHidden = true
         stack.addArrangedSubview(responseActions)
-        result.string = "Hey! What can I help you with? Enter a message above. For first-time AI setup, choose Menu → Setup Guide."
+        result.string = "Hey! What can I help you with? For first-time AI setup, choose Menu → Shortcuts → Set Up Shortcuts."
         stack.addArrangedSubview(holdThisShelf.view)
         holdThisShelf.view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         holdThisShelf.refresh()
@@ -753,6 +768,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     func applicationWillTerminate(_ notification: Notification) {
         replyShortcut.cancel()
         codexReply.cancel()
+        claudeReply.cancel()
         clipboardHistory.stop()
         favorites.cancel()
         keyboardShortcut.stop()
@@ -896,6 +912,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             actionMenuItem("Microphone…", action: #selector(microphoneSettings))
         ]))
         menu.addItem(submenuItem("Shortcuts", items: [
+            actionMenuItem("Set Up Shortcuts…", action: #selector(setUpShortcuts)),
             actionMenuItem("Shortcut Settings…", action: #selector(shortcutSettings)),
             actionMenuItem("Open Shortcuts", action: #selector(openShortcuts))
         ]))
@@ -1072,6 +1089,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "ChatGPT Shortcut Settings…", action: #selector(chatGPTSettings), keyEquivalent: "")
         settings.target = self; menu.addItem(settings)
+        menu.addItem(actionMenuItem("Claude Code Setup…", action: #selector(claudeSetup)))
         let guideItem = NSMenuItem(title: "AI Setup Guide", action: #selector(guide), keyEquivalent: "")
         guideItem.target = self; menu.addItem(guideItem)
         configureSettingsMenu(menu)
@@ -1359,6 +1377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         if generatingReply, let request = lastAIRequest {
             replyShortcut.cancel()
             codexReply.cancel()
+            claudeReply.cancel()
             conversation.finish(request.exchange, reply: "", succeeded: false)
             result.string = "Response stopped."
             updateRestingAnimation()
@@ -1460,7 +1479,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             self.finishRequest(message: message, succeeded: succeeded, prompt: exchange.text,
                                speakReply: speakReply, generation: generation, preservedDraft: preservedDraft)
         }
-        if backend == .codex {
+        if backend == .claude {
+            result.string = "Asking Claude…"
+            claudeReply.run(exchange.input, completion: complete)
+        } else if backend == .codex {
             result.string = "Asking Codex…"
             codexReply.run(exchange.input, completion: complete)
         } else {
