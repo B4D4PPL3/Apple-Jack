@@ -22,7 +22,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 Drop files, images, links, or text onto either character. Drag them back out when you need them, or select a thumbnail and press **Space** for a preview.
 
-![Detail of the Hold This shelf above Fonz with a track list, a music link, and a text note. Space previews the selected item.](Docs/Screenshots/hold-this.jpg)
+![Detail of the Hold This shelf above Apple Jack with a track list, a music link, and a text note. Space previews the selected item.](Docs/Screenshots/hold-this.jpg)
 
 ### Conversation history
 
