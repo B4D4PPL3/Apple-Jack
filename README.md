@@ -1,6 +1,30 @@
 # Apple Jack
 
-Apple Jack is an animated desktop companion for macOS. Click the character to open a speech bubble, type an app name or website to launch it, or drop a file onto Jack to hold it for later. The bubble includes media controls, clipboard history, favorites, and optional AI responses. Apple Jack and Fonz are included.
+![Apple Jack beside his speech bubble, with playback controls, a sample playlist question, and the Control–Shift–Space shortcut.](Docs/Screenshots/desktop.jpg)
+
+Click Apple Jack or Fonz to open a conversation, control your music, launch an app, or hold a file between windows. Both characters come with the app.
+
+**[Download the 0.51 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.51-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+
+## Feature gallery
+
+### Hold This
+
+Drop files, images, links, or text onto either character. Drag them back out when you need them, or select a thumbnail and press **Space** for a preview.
+
+![Detail of the Hold This shelf above Fonz with a track list, a music link, and a text note. Space previews the selected item.](Docs/Screenshots/hold-this.jpg)
+
+### Conversation history
+
+Open **History** to revisit a reply. With conversation memory enabled, you can ask a follow-up about the same idea.
+
+![The Conversation window in light appearance, with two sample questions and Jack’s replies about a playlist.](Docs/Screenshots/conversation.jpg)
+
+### Clipboard history
+
+Enable **Clipboard** to save recent copies on your Mac. Select a text entry to paste it into Jack or use **Text Actions** to summarize, rewrite, or explain it.
+
+![Clipboard history in dark appearance with three sample entries and the selected text ready to copy or use in Jack.](Docs/Screenshots/clipboard.jpg)
 
 ## Install
 
