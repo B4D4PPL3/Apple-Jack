@@ -4,7 +4,7 @@
 
 Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your companion to chat with ChatGPT in its speech bubble, pause your music, or find a link you copied earlier. To move a file between windows, drop it onto your companion, switch windows, and drag it out where you need it.
 
-![Apple Jack stands with crossed arms beneath the new Classic header logo, Music controls, and a sample playlist conversation.](Docs/Screenshots/desktop.jpg)
+![Apple Jack stands with his arms crossed beneath a pointed speech bubble with the Classic logo, Music controls, and a playlist conversation. Control–Shift–Space shows Jack.](Docs/Screenshots/desktop.jpg)
 
 **[Download the 0.54 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.54-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
@@ -14,7 +14,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 **Bring your own character.** Choose **Menu → Appearance & Character → Pets** to see Apple Jack, Fonz, and your imported characters. Select a character to preview it, then click **Use Pet**. **Import ChatGPT Pet…** lets you browse your ChatGPT companions or choose a PNG or WebP sprite sheet. Turn on **Automatically Import All ChatGPT Pets** on the Pets page to keep your collection up to date.
 
-![ChatGPT companions. The Pets page shows Fonz selected, his sprite preview, and the Import ChatGPT Pet and Use Pet buttons.](Docs/Screenshots/chatgpt-pets.jpg)
+![ChatGPT companions. Fonz waves, jumps, and runs beside the Pets screen, where he is selected and the Import ChatGPT Pet and Use Pet buttons are visible.](Docs/Screenshots/chatgpt-pets.jpg)
 
 **Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → Shortcuts → Set Up Shortcuts…** and add **Ask Apple Jack (ChatGPT)**. If it says **Already Added**, you’re ready to use it. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
@@ -30,7 +30,7 @@ Select a shelf thumbnail and press **Space** to preview it in Jack’s bubble.
 
 Press **Space** again to return from a file, image, or text preview. For an interactive website, use **Back** to return or **Open in Browser** to continue in your default browser.
 
-![Hold This Preview displays the selected Orchard Sessions cover artwork at full size inside the bubble, with Back in the upper left.](Docs/Screenshots/held-preview.jpg)
+![The selected Orchard Sessions cover fills the Hold This Preview inside the speech bubble. The Back button sits at the upper left.](Docs/Screenshots/held-preview.jpg)
 
 ### Favorites
 
