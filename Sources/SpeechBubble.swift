@@ -76,7 +76,8 @@ final class BubbleContentView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
-        if hit is NSStackView || dragSurfaces.contains(where: { $0 === hit }) { return self }
+        if hit is FavoritesListScrollView || hit.enclosingScrollView is FavoritesListScrollView { return hit }
+        if hit is BubblePage || (hit.superview is BubblePage && hit is NSTextField) || hit is NSStackView || dragSurfaces.contains(where: { $0 === hit }) { return self }
         return hit
     }
 
@@ -84,6 +85,9 @@ final class BubbleContentView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        let point = superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+        if let hit = hitTest(point), hit is FavoritesListScrollView || hit.enclosingScrollView is FavoritesListScrollView { return }
+        (window as? GrabCursorPanel)?.grabBegan()
         drag.begin(at: NSEvent.mouseLocation, window: petWindow)
     }
 
@@ -98,6 +102,7 @@ final class BubbleContentView: NSView {
     }
     private func finishDrag() {
         if drag.moved { dragPose?(nil) }
+        (window as? GrabCursorPanel)?.grabEnded()
         drag.end(window: petWindow)
     }
 }
@@ -105,6 +110,7 @@ final class BubbleContentView: NSView {
 // Both presentations share one content controller: switching material keeps
 // the draft, answer, focus, recording and running request intact.
 final class SpeechBubble: NSObject {
+    var onBack: (() -> Bool)?
     weak var delegate: NSPopoverDelegate?
     var contentViewController: NSViewController?
     var contentSize = NSSize(width: 560, height: 280) {
@@ -154,9 +160,10 @@ final class SpeechBubble: NSObject {
             window.hidesOnDeactivate = false
             window.isReleasedWhenClosed = false
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.onEscape = { [weak self] in self?.performClose(nil) }
+            window.onEscape = { [weak self] in if self?.onBack?() != true { self?.performClose(nil) } }
             let surface = BubbleSurface(content: controller.view, size: contentSize, style: style)
             window.contentView = surface
+            window.trackGrabAreas()
             self.surface = surface
             self.panel = window
         }
@@ -232,13 +239,36 @@ struct GlassBubblePlacement {
     }
 }
 
-private final class BubblePanel: NSPanel {
+private final class BubblePanel: GrabCursorPanel {
     var onEscape: (() -> Void)?
+
+    // Jack is a menu-bar app. Give the active field editor the standard Edit
+    // commands using AppKit's key-equivalent matching and responder chain.
+    private let editingCommands: NSMenu = {
+        let menu = NSMenu(title: "Edit")
+        menu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = menu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        return menu
+    }()
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if let editor = firstResponder as? NSTextView, editor.isFieldEditor,
+           editingCommands.performKeyEquivalent(with: event) { return true }
         if let shelf = firstResponder as? ShelfCollectionView, shelf.handleLinkReturn(event) { return true }
         return super.performKeyEquivalent(with: event)
+    }
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, attachedSheet == nil,
+           let preview = BubbleNavigation.current?.visibleBody as? HeldItemPreview,
+           preview.window === self, preview.handleKey(event) { return }
+        super.sendEvent(event)
     }
     override func cancelOperation(_ sender: Any?) { onEscape?() }
 }

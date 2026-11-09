@@ -5,21 +5,31 @@ import UniformTypeIdentifiers
 /// changes the selection or the order of the collection during menu tracking.
 final class HeldItemMenu: NSMenu {
     private let id: UUID
+    private let copyBoard: NSPasteboard
     private let store: HoldThisStore
+    private let addFavorite: ((HeldItem) -> Void)?
     private let reportError: (Error) -> Void
     private let showSharePicker: ([Any]) -> Void
     private var current: HeldItem? { store.items.first { $0.id == id } }
 
-    init(item: HeldItem, store: HoldThisStore, reportError: @escaping (Error) -> Void,
+    init(item: HeldItem, store: HoldThisStore, copyBoard: NSPasteboard = .general, alreadySaved: Bool = false, addFavorite: ((HeldItem) -> Void)? = nil, reportError: @escaping (Error) -> Void,
          showSharePicker: @escaping ([Any]) -> Void) {
         self.id = item.id
         self.store = store
+        self.copyBoard = copyBoard
+        self.addFavorite = addFavorite
         self.reportError = reportError
         self.showSharePicker = showSharePicker
         super.init(title: "Hold This")
         autoenablesItems = false
 
         addItem(command(item.isPinned ? "Unpin" : "Pin", #selector(pinItem)))
+        if addFavorite != nil {
+            let favorite = command(alreadySaved ? "Added to Favorites" : "Add to Favorites", #selector(saveFavorite))
+            favorite.isEnabled = !alreadySaved
+            favorite.image = JackIcon.image(named: "star", accessibilityDescription: nil)
+            addItem(favorite)
+        }
         addItem(.separator())
         let url = location(of: item)
         let canOpen = item.kind == .text || url != nil
@@ -31,6 +41,10 @@ final class HeldItemMenu: NSMenu {
         openWith.isEnabled = openWith.submenu?.items.isEmpty == false
         addItem(openWith)
 
+        let copy = command("Copy", #selector(copyItem))
+        copy.isEnabled = canOpen
+        addItem(copy)
+
         let share = command("Share", #selector(shareItem))
         share.image = JackIcon.image(named: "square.and.arrow.up", accessibilityDescription: nil)
         if #available(macOS 27.0, *) { share.preferredImageVisibility = .visible }
@@ -41,6 +55,8 @@ final class HeldItemMenu: NSMenu {
         let reveal = command("Reveal in Finder", #selector(revealItem))
         reveal.isEnabled = (item.kind == .image || item.kind == .file) && url != nil
         addItem(reveal)
+        addItem(.separator())
+        addItem(command("Remove", #selector(removeHeldItem)))
     }
 
     required init(coder: NSCoder) { fatalError("HeldItemMenu is created for a held item") }
@@ -98,6 +114,17 @@ final class HeldItemMenu: NSMenu {
             menu.addItem(choice)
         }
         return menu
+    }
+
+    @objc private func saveFavorite() { if let item = current { addFavorite?(item) } }
+
+    @objc private func copyItem() {
+        guard let item = current else { return }
+        do { try store.copy([item], to: copyBoard) } catch { reportError(error) }
+    }
+
+    @objc private func removeHeldItem() {
+        do { try store.remove([id]) } catch { reportError(error) }
     }
 
     @objc private func pinItem() {

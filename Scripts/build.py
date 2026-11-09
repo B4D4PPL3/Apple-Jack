@@ -69,6 +69,7 @@ def build(output, identity, repository):
             shutil.copyfile(resources/name,dest/name)
         shutil.copytree(resources/"Sprites",dest/"Sprites")
         shutil.copytree(resources/"Shortcuts",dest/"Shortcuts")
+        shutil.copytree(resources/"BubbleLogos",dest/"BubbleLogos")
         # Embed guide images so the standalone copy on the disk image works offline too.
         def embed_screenshot(match):
             image = root / "Docs/Screenshots" / match.group(1)

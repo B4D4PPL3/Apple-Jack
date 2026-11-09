@@ -8,6 +8,7 @@ struct NowPlayingSnapshot {
     let playing: Bool
     let artwork: Data?
     let processIdentifier: Int32
+    let mediaHost: String?
     let sourceURL: URL?
     let nativeItemIdentifier: String
     let nativeCommands: Set<Int>
@@ -26,6 +27,7 @@ struct NowPlayingSnapshot {
         let item = payload["nativeItemIdentifier"] as? String ?? ""
         nativeItemIdentifier = item.utf8.count <= 8192 && !item.contains("\0") ? item : ""
         nativeCommands = Set((payload["nativeCommands"] as? [Int] ?? []).filter { [0, 1, 2, 4, 5].contains($0) })
+        mediaHost = (payload["mediaHost"] as? String).map { String($0.lowercased().prefix(255)) }
         sourceURL = [payload["sourceURL"], payload["contentItemIdentifier"]].compactMap { value -> URL? in
             guard let text = value as? String, text.count <= 8192,
                   let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),

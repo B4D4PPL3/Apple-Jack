@@ -1,5 +1,4 @@
 import AppKit
-import Quartz
 
 final class ShelfCollectionView: NSCollectionView {
     var itemMenu: ((IndexPath) -> NSMenu?)?
@@ -156,7 +155,7 @@ private final class HeldThumbnail: NSCollectionViewItem {
     }
 }
 
-final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate, NSSharingServicePickerDelegate, QLPreviewPanelDataSource {
+final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate, NSSharingServicePickerDelegate {
     let store: HoldThisStore
     let view = NSStackView()
     private let collection = ShelfCollectionView()
@@ -170,10 +169,7 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
     private var items: [HeldItem] = []
     private var draggingIDs = Set<UUID>()
     private var sharePicker: NSSharingServicePicker?
-    private var previewItems: [(id: UUID, url: URL)] = []
-    private var websitePreview: HeldWebsitePreview?
-    private weak var activePreviewPanel: QLPreviewPanel?
-    var hasPreviewItems: Bool { !previewItems.isEmpty }
+    private weak var preview: HeldItemPreview?
 
     init(store: HoldThisStore) {
         self.store = store
@@ -205,7 +201,11 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
             guard let self, self.items.indices.contains(path.item) else { return nil }
             self.updateActions()
             let item = self.items[path.item]
-            return HeldItemMenu(item: item, store: self.store, reportError: { [weak self] in self?.present($0) },
+            return HeldItemMenu(item: item, store: self.store, alreadySaved: self.isFavorite?(item.id) == true, addFavorite: { [weak self] item in
+                guard let self, let save = self.addFavorite else { return }
+                do { try save(item) }
+                catch { self.present(error) }
+            }, reportError: { [weak self] in self?.present($0) },
                                 showSharePicker: { [weak self] payload in self?.share(payload, from: item.id) })
         }
         collection.register(HeldThumbnail.self, forItemWithIdentifier: HeldThumbnail.reuseID)
@@ -256,61 +256,19 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
 
     private func togglePreview() {
         let selection = selected
-        guard !selection.isEmpty, let anchor = view.window else { return }
-        let sameWebSelection = websitePreview?.items.map(\.id) == selection.map(\.id)
-        websitePreview?.close()
-        if sameWebSelection { return }
-        if selection.contains(where: { $0.websiteURL != nil }) {
-            closePreview()
-            do {
-                let items = try selection.map { ($0.id, try store.previewURL(for: $0)) }
-                let preview = HeldWebsitePreview(items: items, anchor: anchor) { [weak self] url in self?.openWebsites([url]) }
-                websitePreview = preview
-                preview.didClose = { [weak self] in self?.websitePreview = nil }
-                preview.makeKeyAndOrderFront(nil)
-            } catch { present(error) }
-            return
-        }
-        guard let panel = QLPreviewPanel.shared() else { return }
-        if activePreviewPanel?.isVisible == true && previewItems.map(\.id) == selection.map(\.id) {
-            panel.close()
-            return
-        }
+        guard !selection.isEmpty, let navigation = BubbleNavigation.current else { return }
         do {
-            previewItems = try selection.map { ($0.id, try store.previewURL(for: $0)) }
-        } catch {
-            present(error)
-            return
-        }
-        panel.updateController()
-        panel.makeKeyAndOrderFront(nil)
-        if activePreviewPanel === panel {
-            panel.reloadData()
-            panel.currentPreviewItemIndex = 0
-        }
-    }
-
-    func beginPreview(_ panel: QLPreviewPanel) {
-        activePreviewPanel = panel
-        panel.dataSource = self
-    }
-
-    func endPreview(_ panel: QLPreviewPanel) {
-        panel.dataSource = nil
-        activePreviewPanel = nil
-        previewItems.removeAll()
-    }
-
-    func closePreview() {
-        websitePreview?.close()
-        if let panel = activePreviewPanel, panel.isVisible { panel.close() }
-    }
-
-    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { previewItems.count }
-
-    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        guard previewItems.indices.contains(index) else { return nil }
-        return previewItems[index].url as NSURL
+            let items = try selection.map { ($0.id, try store.previewURL(for: $0)) }
+            let body = HeldItemPreview(items: items)
+            preview = body
+            body.present(in: navigation, title: "Hold This Preview", returnFocus: collection) { [weak self] in
+                guard let self else { return }
+                let ids = Set(selection.map(\.id))
+                self.collection.selectionIndexPaths = Set(self.items.indices.compactMap {
+                    ids.contains(self.items[$0].id) ? IndexPath(item: $0, section: 0) : nil
+                })
+            }
+        } catch { present(error) }
     }
 
     private func share(_ payload: [Any], from id: UUID) {
@@ -343,9 +301,12 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
         DispatchQueue.main.async {
             let alert = NSAlert(error: error)
             alert.messageText = "Hold This"
-            alert.runModal()
+            alert.presentInJack()
         }
     }
+
+    var isFavorite: ((UUID) -> Bool)?
+    var addFavorite: ((HeldItem) throws -> Void)?
 
     private var selected: [HeldItem] {
         collection.selectionIndexPaths.sorted().compactMap { path in
@@ -357,8 +318,8 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
         let oldSelection = Set(selected.map(\.id))
         let added = store.items.count > items.count
         items = store.items.filter(\.isPinned) + store.items.filter { !$0.isPinned }
-        if (websitePreview?.items ?? previewItems).contains(where: { preview in !items.contains { $0.id == preview.id } }) {
-            closePreview()
+        if let preview, preview.items.contains(where: { entry in !items.contains { $0.id == entry.id } }) {
+            preview.dismiss?()
         }
         collection.reloadData()
         collection.selectionIndexPaths = Set(items.indices.compactMap {
@@ -407,15 +368,7 @@ final class HoldThisShelf: NSObject, NSCollectionViewDataSource, NSCollectionVie
         removeButton.isEnabled = enabled
     }
     @objc private func copySelected() {
-        let selection = selected
-        let writers = selection.compactMap(store.writer)
-        guard !selection.isEmpty else { return }
-        guard writers.count == selection.count else { showHint("An original file is unavailable on this Mac."); return }
-        NSPasteboard.general.clearContents()
-        if !NSPasteboard.general.writeObjects(writers) { showHint("The selected items could not be copied.") }
-    }
-    private func showHint(_ message: String) {
-        present(NSError(domain: "AppleJack.HoldThis", code: 1, userInfo: [NSLocalizedDescriptionKey: message]))
+        do { try store.copy(selected) } catch { present(error) }
     }
     @objc private func removeSelected() { remove(Set(selected.map(\.id))) }
     private func remove(_ ids: Set<UUID>) {

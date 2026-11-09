@@ -2,7 +2,8 @@ import AppKit
 
 enum LocationOpenRequest: Equatable {
     case finder(URL)
-    case website(URL)
+    enum WebsiteTarget { case defaultBrowser, preview, safari }
+    case website(URL, WebsiteTarget = .defaultBrowser)
     case invalid(String)
 
     static func parse(_ message: String, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> LocationOpenRequest? {
@@ -20,13 +21,15 @@ enum LocationOpenRequest: Equatable {
         }
         let verb = String(text[verbRange]).lowercased()
         var target = String(text[targetRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        var explicitSafari = false
         var hint: String? = verb == "visit" ? "website" : nil
         // Strip prose only for commands. Bare pasted paths remain literal,
         // and quotes protect filenames that themselves end in these words.
         for _ in 0..<2 {
             target = target.replacingOccurrences(of: #"(?i)(?:,?\s+please|\s+for\s+me)+[.!?]*$"#, with: "", options: .regularExpression)
             if let range = target.range(of: #"(?i)\s+in\s+(Safari|Finder)[.!?]*$"#, options: .regularExpression) {
-                hint = target[range].lowercased().contains("safari") ? "website" : "finder"
+                explicitSafari = target[range].lowercased().contains("safari")
+                hint = explicitSafari ? "website" : "finder"
                 target.removeSubrange(range)
             }
         }
@@ -36,12 +39,13 @@ enum LocationOpenRequest: Equatable {
             hint = "website"; target.removeSubrange(range)
         }
         target = unquote(target.trimmingCharacters(in: .whitespacesAndNewlines))
-        // Keep app-name requests such as "open Notes.app" in the app launcher.
-        if hint == nil, (verb == "open" || verb == "open up" || verb == "launch"),
-           target.range(of: #"(?i)^[^/:]+\.app[.!?]*$"#, options: .regularExpression) != nil { return nil }
         if let location = directDestination(target, home: home) {
             if hint == "finder", case .website = location { return .invalid("Enter a Finder path, such as ~/Downloads, for this request.") }
             if hint == "website", case .finder = location { return .invalid("Enter a website address such as apple.com, or omit “in Safari” to open a path in Finder.") }
+            if case .website(let url, _) = location {
+                let preview = (verb == "open" || verb == "open up") && !explicitSafari
+                return .website(url, preview ? .preview : .safari)
+            }
             return location
         }
         if hint == "website" { return .invalid("Enter a website address such as apple.com or https://example.com.") }
@@ -74,7 +78,7 @@ enum LocationOpenRequest: Equatable {
         let hasWebScheme = lower.hasPrefix("https://") || lower.hasPrefix("http://")
         let invalid = LocationOpenRequest.invalid("That website address isn’t valid. Try a complete http:// or https:// address.")
         if !hasWebScheme, target.range(of: #"(?i)^(?:[a-z][a-z0-9+.-]*://|javascript:|data:|mailto:|tel:|https?:)"#, options: .regularExpression) != nil {
-            return .invalid("Jack opens http:// and https:// websites in Safari, and local paths in Finder.")
+            return .invalid("Enter an http:// or https:// address, or a local Finder path.")
         }
         // Spaces in ordinary messages must not turn a conversation into a URL.
         guard !target.contains(where: { $0.isWhitespace || $0.isNewline }) else { return hasWebScheme ? invalid : nil }
@@ -133,32 +137,35 @@ enum LocationOpenRequest: Equatable {
 }
 
 enum NativeLocationOpener {
-    static func open(_ request: LocationOpenRequest, completion: @escaping (Result<String, Error>) -> Void) {
-        switch request {
-        case .invalid(let message):
-            completion(.failure(error(message)))
-        case .website(let url):
-            openWebsites([url], completion: completion)
-        case .finder(let url):
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .nameKey])
-                    let name = values.name ?? url.lastPathComponent
-                    DispatchQueue.main.async {
-                        if values.isDirectory == true && values.isPackage != true {
-                            guard let finder = existingApp(["/System/Library/CoreServices/Finder.app"]) else {
-                                completion(.failure(error("I couldn’t find Finder on this Mac."))); return
-                            }
-                            open([url], with: finder, success: "Opened \(name) in Finder.", completion: completion)
-                        } else if NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "") {
-                            completion(.success("Revealed \(name) in Finder."))
-                        } else {
-                            completion(.failure(error("Finder couldn’t reveal \(name).")))
+    static func openInDefaultBrowser(_ url: URL, completion: @escaping (Result<String, Error>) -> Void) {
+        // Resolve the scheme itself so a site’s universal link cannot select a native app.
+        guard let scheme = url.scheme, let schemeURL = URL(string: scheme + ":"),
+              let browser = NSWorkspace.shared.urlForApplication(toOpen: schemeURL) else {
+            completion(.failure(error("macOS couldn’t find a default browser for this address.")))
+            return
+        }
+        open([url], with: browser, itemName: url.host ?? url.absoluteString, completion: completion)
+    }
+
+    static func openFinder(_ url: URL, completion: @escaping (Result<String, Error>) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .nameKey])
+                let name = values.name ?? url.lastPathComponent
+                DispatchQueue.main.async {
+                    if values.isDirectory == true && values.isPackage != true {
+                        guard let finder = existingApp(["/System/Library/CoreServices/Finder.app"]) else {
+                            completion(.failure(error("I couldn’t find Finder on this Mac."))); return
                         }
+                        open([url], with: finder, itemName: name, completion: completion)
+                    } else if NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "") {
+                        completion(.success("Revealed \(name) in Finder."))
+                    } else {
+                        completion(.failure(error("Finder couldn’t reveal \(name).")))
                     }
-                } catch {
-                    DispatchQueue.main.async { completion(.failure(error)) }
                 }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
         }
     }
@@ -168,17 +175,21 @@ enum NativeLocationOpener {
         let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari")
             ?? existingApp(["/Applications/Safari.app", "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app"])
         guard let safari = safari else { completion(.failure(error("I couldn’t find Safari on this Mac."))); return }
-        open(urls, with: safari, success: "Opened \(first.host ?? first.absoluteString) in Safari.", completion: completion)
+        open(urls, with: safari, itemName: first.host ?? first.absoluteString, completion: completion)
     }
 
-    private static func open(_ urls: [URL], with application: URL, success: String, completion: @escaping (Result<String, Error>) -> Void) {
+    private static func open(_ urls: [URL], with application: URL, itemName: String, completion: @escaping (Result<String, Error>) -> Void) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.open(urls, withApplicationAt: application, configuration: configuration) { running, failure in
             let outcome: Result<String, Error>
             if let failure = failure { outcome = .failure(failure) }
-            else if let running = running, !running.isTerminated { outcome = .success(success) }
-            else { outcome = .failure(error("macOS did not confirm that the destination opened.")) }
+            else if let running, !running.isTerminated {
+                let appURL = running.bundleURL ?? application
+                let name = running.localizedName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let appName = name.flatMap { $0.isEmpty ? nil : $0 } ?? appURL.deletingPathExtension().lastPathComponent
+                outcome = .success("Opened \(itemName) in \(appName).")
+            } else { outcome = .failure(error("macOS did not confirm that the destination opened.")) }
             DispatchQueue.main.async { completion(outcome) }
         }
     }

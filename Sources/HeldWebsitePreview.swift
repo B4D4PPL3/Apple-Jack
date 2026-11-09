@@ -4,73 +4,78 @@ import WebKit
 
 /// Web links need an actual browsing surface. File members of a mixed selection
 /// still use the system Quick Look renderer.
-final class HeldWebsitePreview: NSPanel, WKNavigationDelegate {
+final class HeldItemPreview: NSView, WKNavigationDelegate {
     let items: [(id: UUID, url: URL)]
     private let container = NSView()
     private let status = NSTextField(labelWithString: "")
     private let previous = NSButton(title: "‹", target: nil, action: nil)
     private let next = NSButton(title: "›", target: nil, action: nil)
-    private let openButton = NSButton(title: "Open in Safari", target: nil, action: nil)
+    private let openButton = NSButton(title: "Open in Browser", target: nil, action: nil)
     private var index = 0
     private var web: WKWebView?
     private var local: QLPreviewView?
-    private let openURL: (URL) -> Void
-    var didClose: (() -> Void)?
+    var dismiss: (() -> Void)?
 
-    init(items: [(id: UUID, url: URL)], anchor: NSWindow, openURL: @escaping (URL) -> Void) {
+    init(items: [(id: UUID, url: URL)]) {
         self.items = items
-        self.openURL = openURL
-        let screen = anchor.screen?.visibleFrame ?? anchor.frame
-        let size = NSSize(width: min(720, screen.width * 0.85), height: min(490, screen.height * 0.75))
-        super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .resizable],
-                   backing: .buffered, defer: false)
-        isReleasedWhenClosed = false
-        hidesOnDeactivate = false
-        level = anchor.level
-        minSize = NSSize(width: 330, height: 220)
+        super.init(frame: NSRect(x: 0, y: 0, width: 560, height: 340))
         previous.target = self; previous.action = #selector(goBack)
         next.target = self; next.action = #selector(goForward)
         previous.setAccessibilityLabel("Previous held item")
         next.setAccessibilityLabel("Next held item")
         previous.isHidden = items.count == 1; next.isHidden = items.count == 1
-        openButton.target = self; openButton.action = #selector(openInSafari)
+        openButton.target = self; openButton.action = #selector(openInBrowser)
         status.lineBreakMode = .byTruncatingMiddle
         status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let toolbar = NSStackView(views: [previous, next, status, NSView(), openButton])
         toolbar.spacing = 6
-        let root = NSView(frame: NSRect(origin: .zero, size: size))
-        contentView = root
         for child in [container, toolbar] {
-            root.addSubview(child)
+            addSubview(child)
             child.translatesAutoresizingMaskIntoConstraints = false
         }
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: root.topAnchor, constant: 6),
-            toolbar.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
-            toolbar.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -10),
+            toolbar.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            toolbar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            toolbar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             container.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: 6),
-            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: root.trailingAnchor)
+            container.bottomAnchor.constraint(equalTo: bottomAnchor),
+            container.leadingAnchor.constraint(equalTo: leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: trailingAnchor)
         ])
-        setFrameOrigin(NSPoint(x: screen.midX - frame.width / 2, y: screen.midY - frame.height / 2))
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    func present(in navigation: BubbleNavigation, title: String, returnFocus: NSView, onLeave: (() -> Void)? = nil) {
+        dismiss = { [weak self, weak navigation] in
+            guard let self, navigation?.visibleBody === self else { return }
+            navigation?.back()
+        }
+        navigation.show(title, body: self, size: frame.size, minimum: NSSize(width: 280, height: 160),
+                        returnFocus: returnFocus) { [weak self] in
+            self?.clearItem()
+            onLeave?()
+        }
+        layoutSubtreeIfNeeded()
         showItem()
     }
 
     @objc private func goBack() { if index > 0 { index -= 1; showItem() } }
     @objc private func goForward() { if index + 1 < items.count { index += 1; showItem() } }
-    @objc private func openInSafari() {
+    @objc private func openInBrowser() {
         let url = web?.url ?? items[index].url
         guard Self.isWebsite(url) else { return }
-        close()
-        openURL(url)
+        NativeLocationOpener.openInDefaultBrowser(url) { [weak self] result in
+            switch result {
+            case .success: self?.dismiss?()
+            case .failure(let error): self?.status.stringValue = error.localizedDescription
+            }
+        }
     }
 
     static func isWebsite(_ url: URL) -> Bool {
         ["http", "https"].contains(url.scheme?.lowercased()) && url.host?.isEmpty == false
     }
 
-    private func clearItem() {
+    func clearItem() {
         web?.navigationDelegate = nil
         web?.stopLoading()
         web?.removeFromSuperview()
@@ -87,12 +92,14 @@ final class HeldWebsitePreview: NSPanel, WKNavigationDelegate {
         openButton.isHidden = url.isFileURL
         let surface: NSView
         if url.isFileURL {
-            let preview = QLPreviewView(frame: container.bounds, style: .normal)!
+            guard let preview = QLPreviewView(frame: container.bounds, style: .normal) else {
+                status.stringValue = "Quick Look is unavailable for " + url.lastPathComponent
+                return
+            }
             preview.shouldCloseWithWindow = false
             local = preview
             preview.previewItem = url as NSURL
-            title = url.lastPathComponent
-            status.stringValue = title
+            status.stringValue = url.lastPathComponent
             surface = preview
         } else {
             let configuration = WKWebViewConfiguration()
@@ -101,13 +108,13 @@ final class HeldWebsitePreview: NSPanel, WKNavigationDelegate {
             let preview = WKWebView(frame: container.bounds, configuration: configuration)
             web = preview
             preview.navigationDelegate = self
-            title = url.host ?? "Website Preview"
-            status.stringValue = "Loading " + title + "…"
+            status.stringValue = "Loading " + (url.host ?? "website") + "…"
             preview.load(URLRequest(url: url, timeoutInterval: 25))
             surface = preview
         }
         surface.autoresizingMask = [.width, .height]
         container.addSubview(surface)
+        if let web { window?.makeFirstResponder(web) }
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
@@ -120,12 +127,11 @@ final class HeldWebsitePreview: NSPanel, WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         if response.isForMainFrame && !response.canShowMIMEType {
-            status.stringValue = "This file can be opened in Safari."
+            status.stringValue = "Use Open in Browser to view this file."
             decisionHandler(.cancel)
         } else { decisionHandler(.allow) }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        title = webView.title.flatMap { $0.isEmpty ? nil : $0 } ?? items[index].url.host ?? "Website Preview"
         status.stringValue = webView.url?.absoluteString ?? items[index].url.absoluteString
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -134,21 +140,15 @@ final class HeldWebsitePreview: NSPanel, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         self.webView(webView, didFailProvisionalNavigation: navigation, withError: error)
     }
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown && event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
-            switch event.keyCode {
-            case 49, 53: if !event.isARepeat { close() }; return
-            case 36 where !openButton.isHidden, 76 where !openButton.isHidden: if !event.isARepeat { openInSafari() }; return
-            case 123 where items.count > 1: goBack(); return
-            case 124 where items.count > 1: goForward(); return
-            default: break
-            }
+    func handleKey(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else { return false }
+        switch event.keyCode {
+        case 49 where web == nil, 53:
+            if !event.isARepeat { dismiss?() }
+        case 123 where items.count > 1: goBack()
+        case 124 where items.count > 1: goForward()
+        default: return false
         }
-        super.sendEvent(event)
-    }
-    override func close() {
-        clearItem()
-        super.close()
-        didClose?()
+        return true
     }
 }

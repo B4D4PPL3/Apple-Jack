@@ -5,6 +5,7 @@ struct JackShortcut: Codable, Equatable {
     let keyCode: UInt32
     let modifiers: UInt32
     static let defaultShortcut = JackShortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | shiftKey))
+    static let defaultHide = JackShortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: UInt32(controlKey | shiftKey))
     static let modifierMask = UInt32(controlKey | optionKey | shiftKey | cmdKey)
     var isValid: Bool {
         keyCode < 128 && keyCode != UInt32(kVK_Escape)
@@ -77,13 +78,19 @@ struct NativeShortcutRegistration: ShortcutRegistrationBackend {
 }
 
 final class SavedShortcutPreferences: ShortcutPreferences {
+    private let bindingKey: String
+    private let enabledKey: String
+    init(prefix: String = "summon") {
+        bindingKey = prefix + "ShortcutBinding"
+        enabledKey = prefix + "ShortcutEnabled"
+    }
     var bindingData: Data? {
-        get { UserDefaults.standard.data(forKey: KeyboardShortcutController.bindingKey) }
-        set { UserDefaults.standard.set(newValue, forKey: KeyboardShortcutController.bindingKey) }
+        get { UserDefaults.standard.data(forKey: bindingKey) }
+        set { UserDefaults.standard.set(newValue, forKey: bindingKey) }
     }
     var enabledValue: Bool? {
-        get { UserDefaults.standard.object(forKey: KeyboardShortcutController.enabledKey) as? Bool }
-        set { UserDefaults.standard.set(newValue, forKey: KeyboardShortcutController.enabledKey) }
+        get { UserDefaults.standard.object(forKey: enabledKey) as? Bool }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
     }
 }
 
@@ -97,18 +104,22 @@ final class KeyboardShortcutController {
     private var identifier: UInt32 = 0
     private var held = false
     private var paused = false
-    private static let signature: OSType = 0x414A484B // AJHK
+    private let signature: OSType
+    let defaultBinding: JackShortcut
     private(set) var errorMessage: String?
     var onPress: (() -> Void)?
     var binding: JackShortcut {
         guard let data = preferences.bindingData,
-              let value = try? JSONDecoder().decode(JackShortcut.self, from: data), value.isValid else { return .defaultShortcut }
+              let value = try? JSONDecoder().decode(JackShortcut.self, from: data), value.isValid else { return defaultBinding }
         return value
     }
     var enabled: Bool { preferences.enabledValue ?? true }
     var isRegistered: Bool { registration != nil }
 
-    init(preferences: ShortcutPreferences = SavedShortcutPreferences(), backend: ShortcutRegistrationBackend = NativeShortcutRegistration()) {
+    init(preferences: ShortcutPreferences = SavedShortcutPreferences(), backend: ShortcutRegistrationBackend = NativeShortcutRegistration(),
+         defaultBinding: JackShortcut = .defaultShortcut, signature: OSType = 0x414A484B) {
+        self.defaultBinding = defaultBinding
+        self.signature = signature
         self.preferences = preferences; self.backend = backend
     }
     @discardableResult func start() -> Bool {
@@ -126,7 +137,7 @@ final class KeyboardShortcutController {
                 var key = EventHotKeyID()
                 guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                                         nil, MemoryLayout<EventHotKeyID>.size, nil, &key) == noErr,
-                      key.signature == KeyboardShortcutController.signature, key.id == owner.identifier else { return OSStatus(eventNotHandledErr) }
+                      key.signature == owner.signature, key.id == owner.identifier else { return OSStatus(eventNotHandledErr) }
                 if GetEventKind(event) == UInt32(kEventHotKeyReleased) { owner.held = false; return noErr }
                 guard !owner.held, !owner.paused else { return noErr }
                 owner.held = true
@@ -146,7 +157,7 @@ final class KeyboardShortcutController {
         if registration != nil && value == binding { errorMessage = nil; return true }
         let next = identifier &+ 1
         let candidate: EventHotKeyRef
-        switch backend.register(value, id: EventHotKeyID(signature: Self.signature, id: next)) {
+        switch backend.register(value, id: EventHotKeyID(signature: signature, id: next)) {
         case .registered(let reference): candidate = reference
         case .failed(let status):
             errorMessage = status == eventHotKeyExistsErr

@@ -12,6 +12,7 @@ final class FavoritesEditor: NSObject {
         let alert = NSAlert()
         alert.messageText = original == nil ? "Add \(kind.title) Favorite" : "Edit Favorite"
         switch kind {
+        case .item: alert.informativeText = "Choose a name for this saved item."
         case .app: alert.informativeText = "Choose the application you want to open. Give it a short name for the Favorites menu."
         case .folder: alert.informativeText = "Choose the folder you want to open in Finder."
         case .website: alert.informativeText = "Enter a website address. Jack opens website favorites in Safari."
@@ -20,6 +21,7 @@ final class FavoritesEditor: NSObject {
         name.stringValue = original?.name ?? ""
         destination.stringValue = original?.destination ?? ""
         name.setAccessibilityLabel("Favorite name")
+        destination.isEditable = kind != .item
         destination.setAccessibilityLabel("Favorite destination")
         name.placeholderString = "Name shown in Favorites"
         destination.placeholderString = kind == .website ? "example.com" : kind == .shortcut ? "Exact shortcut name" : "Choose a location or enter its path"
@@ -50,9 +52,9 @@ final class FavoritesEditor: NSObject {
         return alert
     }
 
-    func run(save: (JackFavorite) throws -> Void) -> Bool {
+    func present(save: @escaping (JackFavorite) throws -> Void, completion: @escaping (Bool) -> Void) {
         let alert = makeAlert()
-        while alert.runModal() == .alertFirstButtonReturn {
+        alert.editInJack(validate: { [self] in
             do {
                 let label = (name.currentEditor()?.string ?? name.stringValue).trimmingCharacters(in: .whitespacesAndNewlines)
                 let target = (destination.currentEditor()?.string ?? destination.stringValue).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -63,9 +65,8 @@ final class FavoritesEditor: NSObject {
                     entry = try JackFavorite.make(id: original?.id ?? UUID(), kind: kind, name: label, destination: target)
                 }
                 try save(entry); return true
-            } catch { alert.informativeText = error.localizedDescription }
-        }
-        return false
+            } catch { alert.informativeText = error.localizedDescription; return false }
+        }, completion: completion)
     }
     @objc private func chooseLocation() {
         let picker = NSOpenPanel()

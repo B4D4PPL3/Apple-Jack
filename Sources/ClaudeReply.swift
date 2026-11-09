@@ -43,14 +43,16 @@ final class ClaudeReply {
         if executable != nil { alert.addButton(withTitle: "Copy Sign-In Command") }
         let guide = alert.addButton(withTitle: "Installation Guide")
         alert.addButton(withTitle: "Close").keyEquivalent = "\u{1b}"
-        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-        guard alert.buttons.indices.contains(index) else { return }
-        if alert.buttons[index] === guide {
-            NSWorkspace.shared.open(URL(string: "https://code.claude.com/docs/en/quickstart")!)
-        } else if index == 0, let executable {
-            let quoted = "'" + executable.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(quoted + " auth login", forType: .string)
+        alert.presentInJack { response in
+            let index = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+            guard alert.buttons.indices.contains(index) else { return }
+            if alert.buttons[index] === guide {
+                NSWorkspace.shared.open(URL(string: "https://code.claude.com/docs/en/quickstart")!)
+            } else if index == 0, let executable {
+                let quoted = "'" + executable.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(quoted + " auth login", forType: .string)
+            }
         }
     }
 

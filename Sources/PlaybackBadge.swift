@@ -25,7 +25,7 @@ final class PlaybackBadge {
         button.frame = NSRect(origin: .zero, size: size)
         bars.frame = NSRect(x: 11, y: 6, width: 20, height: 11)
         bars.bounds.size = NSSize(width: 34, height: 19)
-        bars.playingColor = .labelColor
+        bars.playingColor = .controlAccentColor
         bars.playing = true
         button.addSubview(bars)
         panel.contentView = button
@@ -33,7 +33,7 @@ final class PlaybackBadge {
 
     @objc private func open() { openSource?() }
 
-    func show(title: String, above head: NSPoint, in parent: NSWindow, opacity: CGFloat) {
+    func show(source: NowPlayingSnapshot, above head: NSPoint, in parent: NSWindow, opacity: CGFloat) {
         let size = panel.frame.size
         let display = parent.screen?.visibleFrame ?? parent.frame
         var origin = NSPoint(x: head.x - size.width / 2, y: head.y + 2)
@@ -44,8 +44,9 @@ final class PlaybackBadge {
         origin.x = min(max(origin.x, display.minX), display.maxX - size.width)
         origin.y = max(origin.y, display.minY)
         if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
-        button.toolTip = title
-        button.setAccessibilityHelp(title)
+        bars.playingColor = source.waveformColor
+        button.toolTip = source.title
+        button.setAccessibilityHelp(source.title)
         panel.alphaValue = opacity
         panel.level = parent.level
         if panel.parent !== parent {

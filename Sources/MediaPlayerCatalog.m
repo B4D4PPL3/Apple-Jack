@@ -58,6 +58,20 @@ static NSString *itemIdentifier(NSDictionary *info) {
         [value rangeOfString:[NSString stringWithFormat:@"%C", (unichar)0]].location != NSNotFound) return nil;
     return value;
 }
+// Web players sometimes publish an artwork URL when the item ID is opaque.
+// Only pass the hostname through; an artwork URL is never a navigation target.
+static void addMediaHost(NSMutableDictionary *row, NSDictionary *info) {
+    for (NSString *key in @[@"kMRMediaRemoteNowPlayingInfoAssetURL", @"kMRMediaRemoteNowPlayingInfoExternalContentIdentifier",
+                            @"kMRMediaRemoteNowPlayingInfoArtworkURL", @"kMRMediaRemoteNowPlayingInfoArtworkIdentifier"]) {
+        id value = info[key];
+        NSURL *url = [value isKindOfClass:NSURL.class] ? value : nil;
+        if (!url && [value isKindOfClass:NSString.class] && [value length] <= 8192) url = [NSURL URLWithString:value];
+        if ([@[@"https", @"http"] containsObject:url.scheme.lowercaseString ?: @""] && url.host.length && url.host.length <= 255) {
+            row[@"mediaHost"] = url.host.lowercaseString;
+            return;
+        }
+    }
+}
 static void waitGroup(dispatch_group_t group) {
     if (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC))) fail(@"Media service timed out");
 }
@@ -112,6 +126,7 @@ static NSDictionary *catalog(BOOL detailed) {
         getInfo(path, detailed, queue, ^(NSDictionary *info) {
             if ([info isKindOfClass:NSDictionary.class]) {
                 NSDictionary *converted = convertNowPlayingInformation(info, false, false, true);
+                addMediaHost(row, info);
                 NSString *item = itemIdentifier(info);
                 if (item) row[@"nativeItemIdentifier"] = item;
                 // Only fields used by Jack, bounded to avoid oversized pipe frames.

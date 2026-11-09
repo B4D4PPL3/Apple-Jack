@@ -8,10 +8,8 @@ struct ChatGPTPetCandidate {
     let data: () throws -> Data
 
     func preview() -> CGImage? {
-        guard let data = try? data(), let source = CGImageSourceCreateWithData(data as CFData, nil),
-              SpriteLoader.isPetSource(source),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        return image.cropping(to: CGRect(x: 0, y: 0, width: 192, height: 208))
+        guard let data = try? data() else { return nil }
+        return SpriteLoader.petPreview(data)
     }
 }
 
@@ -82,6 +80,11 @@ enum ChatGPTPetCatalog {
         return url.path.hasPrefix(folder.path + "/") ? url : nil
     }
 
+    private static func isPetFile(_ url: URL) -> Bool {
+        if let source = CGImageSourceCreateWithURL(url as CFURL, nil), SpriteLoader.isPetSource(source) { return true }
+        return false
+    }
+
     private static func package(_ url: URL, manifestName: String) -> ChatGPTPetCandidate? {
         guard let folder = PetDiscoveryAccess.allowedURL(url),
               let json = child(manifestName, of: folder),
@@ -90,7 +93,7 @@ enum ChatGPTPetCatalog {
         let path = manifest.spritesheetPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "spritesheet.webp"
         guard let sheet = child(path, of: folder), let info = try? sheet.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
               info.isRegularFile == true, let size = info.fileSize, size > 0, size <= ImportedPets.limit,
-              let image = CGImageSourceCreateWithURL(sheet as CFURL, nil), SpriteLoader.isPetSource(image) else { return nil }
+              isPetFile(sheet) else { return nil }
         let title = [manifest.displayName, manifest.id, url.lastPathComponent].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty } ?? url.lastPathComponent
         return ChatGPTPetCandidate(id: manifest.id ?? url.lastPathComponent, name: String(title.prefix(100)), sourceName: "Custom") {
             guard let current = child(path, of: folder) else { throw PetImportError(message: "This pet’s sprite sheet has moved. Open the pet list again.") }
@@ -107,23 +110,24 @@ private final class PetAssetArchive {
         let size: Int
     }
     private let file: FileHandle
-    private let lock = NSLock()
     let sheets: [String: Entry]
 
     init(url: URL) throws {
         let invalid = PetImportError(message: "Couldn’t read pet artwork in this installation of ChatGPT.")
         let handle = try FileHandle(forReadingFrom: url)
-        let fileSize = try handle.seekToEnd()
-        try handle.seek(toOffset: 0)
-        let prefix = try handle.read(upToCount: 16) ?? Data()
+        var attributes = stat()
+        guard fstat(handle.fileDescriptor, &attributes) == 0, attributes.st_size >= 16 else { throw invalid }
+        let fileSize = UInt64(attributes.st_size)
+        let prefix = try handle.petData(at: 0, count: 16)
         guard prefix.count == 16 else { throw invalid }
         func word(_ i: Int) -> Int {
             (0..<4).reduce(0) { $0 | Int(prefix[i + $1]) << (8 * $1) }
         }
         let headerSize = word(4), jsonSize = word(12)
         let base = UInt64(headerSize + 8)
-        guard word(0) == 4, jsonSize > 0, headerSize >= 8 + jsonSize, headerSize <= 32 * 1024 * 1024, base <= fileSize,
-              let bytes = try handle.read(upToCount: jsonSize), bytes.count == jsonSize,
+        guard word(0) == 4, jsonSize > 0, headerSize >= 8 + jsonSize, headerSize <= 32 * 1024 * 1024, base <= fileSize else { throw invalid }
+        let bytes = try handle.petData(at: 16, count: jsonSize)
+        guard bytes.count == jsonSize,
               let root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else { throw invalid }
         var node = root
         for component in ["webview", "assets"] {
@@ -148,10 +152,8 @@ private final class PetAssetArchive {
     }
 
     func read(_ entry: Entry) throws -> Data {
-        lock.lock()
-        defer { lock.unlock() }
-        try file.seek(toOffset: entry.offset)
-        guard let data = try file.read(upToCount: entry.size), data.count == entry.size else {
+        let data = try file.petData(at: Int64(entry.offset), count: entry.size)
+        guard data.count == entry.size else {
             throw PetImportError(message: "This pet’s artwork is unavailable. Reopen the list to scan again.")
         }
         return data

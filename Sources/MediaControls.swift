@@ -8,13 +8,15 @@ final class MediaControls: NSObject, NSMenuDelegate {
     private let runner = MediaCommandRunner()
     private let selectedCommands = SelectedMediaCommands()
     private var snapshot: NowPlayingSnapshot?
-    private var transportButtons: [NSButton] = []
+    private var transportButtons: [PlaybackTransportButton] = []
     private let openPlayerButton = NSButton(title: "Open Player", target: nil, action: nil)
     private var sourceKey: String?
     private var automaticKey: String?
     var openPlayer: (() -> Void)?
     func selectSource(_ key: String?, snapshot: NowPlayingSnapshot?, automaticKey: String?) {
         sourceKey = key; self.snapshot = snapshot; self.automaticKey = automaticKey
+        for button in transportButtons { button.glyphColor = snapshot?.waveformColor ?? PlaybackBars.emptyColor }
+        openPlayerButton.contentTintColor = snapshot?.waveformColor
         updateTransport()
     }
     private func route(_ command: MediaCommand) -> MediaPlaybackRoute {
@@ -43,11 +45,10 @@ final class MediaControls: NSObject, NSMenuDelegate {
             (.playPause, "playpause.fill", "Play or pause", "Play or pause your selected media player"),
             (.forward, "forward.end.fill", "Forward", "Next track in your selected media player")
         ] {
-            let button = NSButton(image: JackIcon.image(named: symbol, accessibilityDescription: label)!, target: self, action: #selector(transport(_:)))
+            let button = PlaybackTransportButton(glyph: JackIcon.image(named: symbol, accessibilityDescription: label)!)
+            button.target = self
+            button.action = #selector(transport(_:))
             button.tag = key.rawValue
-            button.bezelStyle = .texturedRounded
-            button.imagePosition = .imageOnly
-            button.imageScaling = .scaleProportionallyDown
             button.setAccessibilityLabel(label)
             button.toolTip = hint
             button.widthAnchor.constraint(equalToConstant: 28).isActive = true
@@ -145,5 +146,44 @@ final class MediaControls: NSObject, NSMenuDelegate {
         // The selection action runs after the menu closes. Don't replace its
         // selected item until that action has read the UID.
         DispatchQueue.main.async { [weak self] in self?.refreshOutputs() }
+    }
+}
+
+// Leave the bezel, tracking, keyboard and accessibility to NSButton. Its textured
+// bezel can replace a template image's contentTintColor with the system accent.
+// Draw the foreground separately so the visible glyph uses the waveform's ink.
+private final class PlaybackTransportButton: NSButton {
+    private let glyph: NSImage
+    var glyphColor = PlaybackBars.emptyColor {
+        didSet { if oldValue != glyphColor { needsDisplay = true } }
+    }
+    init(glyph: NSImage) {
+        self.glyph = glyph
+        super.init(frame: .zero)
+        title = ""
+        setButtonType(.momentaryPushIn)
+        bezelStyle = .texturedRounded
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let size = glyph.size
+        guard size.width > 0, size.height > 0, let context = NSGraphicsContext.current?.cgContext else { return }
+        let scale = min(19 / size.width, 13 / size.height)
+        let width = size.width * scale, height = size.height * scale
+        let rect = NSRect(x: bounds.midX - width / 2, y: bounds.midY - height / 2, width: width, height: height)
+        context.saveGState()
+        if !isEnabled { context.setAlpha(0.45) }
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        glyph.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        glyphColor.setFill()
+        rect.fill(using: .sourceIn)
+        context.endTransparencyLayer()
+        context.restoreGState()
     }
 }

@@ -71,13 +71,15 @@ final class StartAtLogin: NSObject, NSMenuItemValidation {
         alert.addButton(withTitle: "Open Login Settings")
         alert.addButton(withTitle: "Turn Off")
         alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            SMAppService.openSystemSettingsLoginItems()
-        case .alertSecondButtonReturn:
-            setEnabled(false)
-        default:
-            break
+        alert.presentInJack { [self] response in
+            switch response {
+            case .alertFirstButtonReturn:
+                SMAppService.openSystemSettingsLoginItems()
+            case .alertSecondButtonReturn:
+                setEnabled(false)
+            default:
+                break
+            }
         }
     }
 
@@ -87,8 +89,10 @@ final class StartAtLogin: NSObject, NSMenuItemValidation {
         alert.informativeText = details
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "Open Login Settings")
-        if alert.runModal() == .alertSecondButtonReturn {
-            SMAppService.openSystemSettingsLoginItems()
+        alert.presentInJack { response in
+            if response == .alertSecondButtonReturn {
+                SMAppService.openSystemSettingsLoginItems()
+            }
         }
     }
 }

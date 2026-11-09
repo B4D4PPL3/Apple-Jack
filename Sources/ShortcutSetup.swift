@@ -19,12 +19,19 @@ final class ShortcutSetup: NSObject, NSWindowDelegate {
     private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
     private var checking = false
 
-    init(shortcuts: @escaping () -> [SetupShortcut]) { self.shortcuts = shortcuts }
+    init(shortcuts: @escaping () -> [SetupShortcut]) {
+        self.shortcuts = shortcuts
+        super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(returnedToJack),
+            name: NSApplication.didBecomeActiveNotification, object: nil)
+    }
+    @objc private func returnedToJack() { if refreshButton.window?.isVisible == true { refresh() } }
 
     func show() {
         if panel == nil { buildWindow() }
         NSApp.activate(ignoringOtherApps: true)
-        panel?.makeKeyAndOrderFront(nil)
+        if let nav = BubbleNavigation.current, let panel { nav.show(panel, title: "Set Up Shortcuts") }
+        else { panel?.makeKeyAndOrderFront(nil) }
         refresh()
     }
 

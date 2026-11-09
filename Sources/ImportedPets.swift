@@ -2,6 +2,28 @@ import AppKit
 import CryptoKit
 import ImageIO
 
+// Positioned reads keep concurrent ASAR previews independent and support every Catalina release.
+extension FileHandle {
+    func petData(at offset: Int64, count: Int) throws -> Data {
+        var data = Data(count: count)
+        let used = try data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) -> Int in
+            var used = 0
+            while used < count {
+                let n = pread(fileDescriptor, bytes.baseAddress!.advanced(by: used), count - used, offset + Int64(used))
+                if n < 0 {
+                    if errno == EINTR { continue }
+                    throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                }
+                if n == 0 { break }
+                used += n
+            }
+            return used
+        }
+        data.count = used
+        return data
+    }
+}
+
 extension SpriteLoader {
     static func isPetSource(_ source: CGImageSource) -> Bool {
         guard let type = CGImageSourceGetType(source) as String?, ["public.png", "org.webmproject.webp"].contains(type),
@@ -12,11 +34,20 @@ extension SpriteLoader {
         return height == 1872 || height == 2288
     }
 
+    static func petImage(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil), isPetSource(source),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary),
+              CGImageSourceGetStatusAtIndex(source, 0) == .statusComplete else { return nil }
+        return image
+    }
+
+    static func petPreview(_ data: Data) -> CGImage? {
+        petImage(data)?.cropping(to: CGRect(x: 0, y: 0, width: 192, height: 208))
+    }
+
     static func importedAtlas(_ data: Data, progress: (Double) -> Void = { _ in }) throws -> [String: LoadedSpriteSheet] {
         let invalid = PetImportError(message: "Choose a ChatGPT pet sprite sheet in PNG or WebP format, 1536 × 1872 or 1536 × 2288 pixels.")
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil), isPetSource(source),
-              let atlas = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary),
-              CGImageSourceGetStatusAtIndex(source, 0) == .statusComplete else { throw invalid }
+        guard let atlas = petImage(data) else { throw invalid }
         let sheets = try splitAtlas(atlas, progress: progress)
         // A blank animation would make the character disappear when that state plays.
         guard let mask = CGContext(data: nil, width: 192, height: 208, bitsPerComponent: 8, bytesPerRow: 192 * 4,
@@ -72,10 +103,11 @@ struct PetImportError: LocalizedError {
 struct ImportedPets {
     let directory: URL
     let resources: URL?
-    init(directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Apple Jack Public/Pets", isDirectory: true), resources: URL? = Bundle.main.resourceURL) {
+    init(directory: URL? = nil, resources: URL? = Bundle.main.resourceURL) {
+        let subdirectory = "Apple Jack Public/Pets"
         self.resources = resources
-        self.directory = directory
+        self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(subdirectory, isDirectory: true)
     }
 
     static let limit = 32 * 1024 * 1024
@@ -87,8 +119,7 @@ struct ImportedPets {
         guard info.isRegularFile == true else { throw PetImportError(message: "Choose the sprite sheet file downloaded from ChatGPT.") }
         guard let size = info.fileSize, size > 0, size <= limit else { throw PetImportError(message: "Choose a nonempty sprite sheet of 32 MB or less.") }
         let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        let data = try handle.read(upToCount: limit + 1) ?? Data()
+        let data = try handle.petData(at: 0, count: size + 1)
         guard data.count == size else { throw PetImportError(message: "The file changed while it was being read. Try importing it again.") }
         return data
     }
@@ -122,6 +153,23 @@ struct ImportedPets {
         var name = stem, number = 2
         while used.contains(name.lowercased()) { name = "\(stem) (\(number))"; number += 1 }
         return name
+    }
+
+    func preview(_ id: String) -> CGImage? {
+        let url: URL
+        if let bundled = BundledPet(rawValue: id) {
+            guard let resources else { return nil }
+            let filename = bundled == .appleJack ? "AppleJackPet.png" : "FonzPet.png"
+            url = resources.appendingPathComponent("Sprites/" + filename)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                return (try? bundled.load(from: resources, progress: { _ in }))?[PetAnimation.idle.rawValue]?.frames.first?.image
+            }
+        } else {
+            guard Self.validID(id) else { return nil }
+            url = directory.appendingPathComponent(id).appendingPathComponent("sheet")
+        }
+        guard let data = try? Self.readFile(url) else { return nil }
+        return SpriteLoader.petPreview(data)
     }
 
     func load(_ id: String, progress: (Double) -> Void = { _ in }) throws -> [String: LoadedSpriteSheet] {

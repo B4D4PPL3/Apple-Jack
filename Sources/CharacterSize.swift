@@ -69,9 +69,8 @@ final class CharacterSliderSettings: NSObject {
     private var preview: ((Double) -> Void)?
 
     // The caller previews changes, commits on Save, and restores on Cancel.
-    func run(initial: Double, preview: @escaping (Double) -> Void) -> Double? {
+    func present(initial: Double, preview: @escaping (Double) -> Void, completion: @escaping (Double?) -> Void) {
         self.preview = preview
-        defer { self.preview = nil }
         slider.doubleValue = initial.isFinite ? (initial * 100).rounded() : 100
         slider.target = self
         slider.action = #selector(changed)
@@ -109,8 +108,10 @@ final class CharacterSliderSettings: NSObject {
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = slider
         NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        return slider.doubleValue.rounded() / 100
+        alert.presentInJack { [self] response in
+            self.preview = nil
+            completion(response == .alertFirstButtonReturn ? slider.doubleValue.rounded() / 100 : nil)
+        }
     }
 
     @objc private func changed() {

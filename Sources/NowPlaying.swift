@@ -295,7 +295,8 @@ final class NowPlayingCard: NSView {
         updateLinks()
         artwork.image = image ?? JackIcon.image(named: "music.note", accessibilityDescription: nil)
         status.stringValue = snapshot.playing ? "Playing" : "Paused"
-        status.textColor = snapshot.playing ? NSColor(srgbRed: 0.7, green: 0.95, blue: 0.4, alpha: 1) : .lightGray
+        status.textColor = snapshot.playing ? NSColor.white : .lightGray
+        bars.playingColor = snapshot.waveformColor
         bars.playing = snapshot.playing
     }
     func setSources(_ sources: [NowPlayingSnapshot], selected: String?, current: NowPlayingSnapshot?) {
@@ -343,6 +344,7 @@ final class NowPlayingCard: NSView {
         title.toolTip = nil; subtitle.toolTip = nil
         artwork.image = JackIcon.image(named: "music.note", accessibilityDescription: nil)
         status.stringValue = ""
+        bars.playingColor = PlaybackBars.emptyColor
         bars.playing = false
     }
 }
@@ -365,9 +367,10 @@ final class NowPlayingLinkButton: NSButton {
 // Decorative pixel bars indicate reported playback state, not measured audio.
 // No audio capture is used, and the timer stops with the bubble or playback.
 final class PlaybackBars: NSView {
+    static let emptyColor = NSColor.gray
     var playing = false { didSet { updateTimer() } }
     var visible = false { didSet { if oldValue != visible { updateTimer() } } }
-    var playingColor = NSColor(srgbRed: 0.68, green: 0.94, blue: 0.35, alpha: 1)
+    var playingColor = NSColor.controlAccentColor { didSet { if oldValue != playingColor { needsDisplay = true } } }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     private var timer: Timer?
     private var motionObserver: NSObjectProtocol?
@@ -393,7 +396,7 @@ final class PlaybackBars: NSView {
         for column in 0..<6 {
             let level = playing ? 1 + Int((sin(time * 5 + Double(column) * 1.6) + 1) * 2) : 1
             for row in 0..<level {
-                (playing ? playingColor : NSColor.gray).setFill()
+                playingColor.setFill()
                 NSRect(x: column * 6, y: row * 4, width: 4, height: 3).fill()
             }
         }
@@ -401,5 +404,36 @@ final class PlaybackBars: NSView {
     deinit {
         timer?.invalidate()
         if let motionObserver = motionObserver { NSWorkspace.shared.notificationCenter.removeObserver(motionObserver) }
+    }
+}
+
+extension NowPlayingSnapshot {
+    var waveformColor: NSColor {
+        // The card and toolbar can inherit different vibrant appearances. Resolve
+        // the semantic ink in Jack's appearance before either view draws it.
+        let appearance = JackAppearance.selected.appearance ?? NSApp.effectiveAppearance
+        var ink = sourceColor
+        if #available(macOS 11, *) {
+            appearance.performAsCurrentDrawingAppearance { ink = ink.usingColorSpace(.sRGB) ?? ink }
+        } else {
+            ink = ink.usingColorSpace(.sRGB) ?? ink
+        }
+        return ink
+    }
+
+    private var sourceColor: NSColor {
+        let hosts = [sourceURL?.host?.lowercased(), mediaHost].compactMap { $0 }
+        func domain(_ name: String) -> Bool { hosts.contains { $0 == name || $0.hasSuffix("." + name) } }
+        let app = bundleIdentifier.lowercased()
+        if domain("youtube.com") || domain("youtu.be") || domain("youtube-nocookie.com") || domain("ytimg.com") || domain("googlevideo.com") ||
+            app == "com.google.ios.youtube" || app == "com.google.youtube" { return .systemRed }
+        if domain("spotify.com") || app == "com.spotify.client" { return NSColor(srgbRed: 0.12, green: 0.84, blue: 0.38, alpha: 1) }
+        if domain("music.apple.com") || app == "com.apple.music" || app == "com.apple.itunes" { return .systemPink }
+        if app.hasPrefix("com.apple.safari.webapp.") || app.hasPrefix("com.google.chrome.app.") {
+            return PlayerIconColor.color(for: bundleIdentifier)
+        }
+        if app.hasPrefix("com.apple.safari") { return .systemBlue }
+        if app == "com.google.chrome" || app.hasPrefix("com.google.chrome.") { return .systemYellow }
+        return PlayerIconColor.color(for: bundleIdentifier)
     }
 }

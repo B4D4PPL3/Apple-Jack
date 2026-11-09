@@ -61,7 +61,7 @@ final class ResponseBubbleLayout {
     }
 
     func resizeNow() {
-        guard !resizing, let bubble, let stack, let scroll, let text,
+        guard BubbleNavigation.current?.isReading != true, !resizing, let bubble, let stack, let scroll, let text,
               let root = bubble.contentViewController?.view else { return }
         resizing = true
         defer { resizing = false }

@@ -21,7 +21,7 @@ struct HeldItem: Codable, Identifiable {
     }
 
     var websiteURL: URL? {
-        guard kind == .link, let url = URL(string: value), HeldWebsitePreview.isWebsite(url) else { return nil }
+        guard kind == .link, let url = URL(string: value), HeldItemPreview.isWebsite(url) else { return nil }
         return url
     }
 
@@ -164,7 +164,22 @@ final class HoldThisStore {
         return writer
     }
 
-    func accept(_ board: NSPasteboard) throws {
+    func copy(_ items: [HeldItem], to board: NSPasteboard = .general) throws {
+        guard !items.isEmpty else { return }
+        let writers = items.compactMap(writer)
+        guard writers.count == items.count else { throw Self.error("An original file is unavailable on this Mac.") }
+        board.clearContents()
+        guard board.writeObjects(writers) else { throw Self.error("The selected items could not be copied.") }
+    }
+
+    func hold(_ entry: ClipboardEntry) throws {
+        let transfer = NSPasteboard.withUniqueName()
+        defer { transfer.releaseGlobally() }
+        _ = try ClipboardCapture.write(entry, to: transfer)
+        try accept(transfer)
+    }
+
+    func accept(_ board: NSPasteboard, deliveryFinished: (() -> Void)? = nil) throws {
         if let loadError { throw loadError }
         var additions: [HeldItem] = []
         let batch = UUID()
@@ -213,10 +228,14 @@ final class HoldThisStore {
             throw error
         }
         if let folder = promisedDestination, let folderID = UUID(uuidString: folder.lastPathComponent) {
+            var remaining = receivers.reduce(0) { $0 + max(1, $1.fileNames.count) }
             for receiver in receivers {
-                receiver.receivePromisedFiles(atDestination: folder, options: [:], operationQueue: deliveryQueue) { [weak self] url, error in
+                receiver.receivePromisedFiles(atDestination: folder, options: [:], operationQueue: deliveryQueue) { url, error in
                     DispatchQueue.main.async {
-                        guard let self else { return }
+                        defer {
+                            remaining -= 1
+                            if remaining == 0 { deliveryFinished?() }
+                        }
                         do {
                             if let error { throw error }
                             guard url.standardizedFileURL.deletingLastPathComponent().path == folder.standardizedFileURL.path,
@@ -227,6 +246,6 @@ final class HoldThisStore {
                     }
                 }
             }
-        }
+        } else { deliveryFinished?() }
     }
 }

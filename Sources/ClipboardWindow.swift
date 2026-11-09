@@ -44,7 +44,8 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
     static let frameAutosaveName = "AppleJackClipboardCompactWindow"
     static let defaultContentSize = NSSize(width: 780, height: 280)
     let history: ClipboardHistory
-    var useText: ((String) -> Bool)?
+    var holdItem: ((ClipboardEntry) throws -> Void)?
+    var useText: ((String) -> Void)?
     var runTextAction: ((ClipboardTextAction, String) -> Bool)?
     var canRunTextAction: (() -> Bool)?
     private var panel: NSPanel?
@@ -65,6 +66,7 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
     private let plainButton = NSButton()
     private let pinButton = NSButton()
     private let useButton = NSButton()
+    private let holdButton = NSButton()
     private let deleteButton = NSButton()
     private let textActions = NSPopUpButton(frame: .zero, pullsDown: true)
     private var shown: [ClipboardEntry] = []
@@ -82,11 +84,15 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
         refresh()
         history.refreshExpiry()
         NSApp.activate(ignoringOtherApps: true)
-        panel?.makeKeyAndOrderFront(nil)
+        if let nav = BubbleNavigation.current, let panel { nav.show(panel, title: "Clipboard", onLeave: { [weak self] in self?.previewLoader.cancel() }) }
+        else { panel?.makeKeyAndOrderFront(nil) }
         updatePreview()
-        panel?.makeFirstResponder(search)
+        search.window?.makeFirstResponder(search)
     }
-    func close() { panel?.close() }
+    func close() {
+        if let nav = BubbleNavigation.current, let panel { nav.close(panel) }
+        else { panel?.close() }
+    }
     func windowWillClose(_ notification: Notification) { previewLoader.cancel() }
     func refreshAppearance() { panel?.appearance = NSApp.appearance }
     func setLevel(_ level: NSWindow.Level) { panel?.level = level }
@@ -108,15 +114,12 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
         window.setFrameAutosaveName(Self.frameAutosaveName)
         // A saved frame on a disconnected display should not strand history.
         if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }) { window.center() }
-        let background = NSVisualEffectView(); background.material = .underWindowBackground; background.blendingMode = .behindWindow; background.state = .active
+        let background = NSView()
         window.contentView = background
         let stack = NSStackView(); stack.orientation = .vertical; stack.spacing = 8; stack.alignment = .leading; stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false; background.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 14), stack.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -14), stack.topAnchor.constraint(equalTo: background.topAnchor, constant: 12), stack.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -12)])
         let header = NSStackView(); header.spacing = 10
-        let icon = NSImageView(image: JackIcon.image(named: "doc.on.clipboard.fill", accessibilityDescription: nil)!)
-        icon.contentTintColor = .systemGreen; header.addArrangedSubview(icon)
-        let heading = NSTextField(labelWithString: "Clipboard"); heading.font = .boldSystemFont(ofSize: 20); header.addArrangedSubview(heading)
         let spacer = NSView(); spacer.setContentHuggingPriority(.defaultLow, for: .horizontal); header.addArrangedSubview(spacer)
         pause.target = self; pause.action = #selector(toggleCapture); pause.bezelStyle = .rounded; header.addArrangedSubview(pause)
         privacy.target = self; privacy.action = #selector(openPrivacy); privacy.isHidden = true; header.addArrangedSubview(privacy)
@@ -162,9 +165,10 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
         content.setContentHuggingPriority(.defaultLow, for: .vertical)
         imageHolder.setContentHuggingPriority(.defaultLow, for: .vertical)
         let actions = NSStackView(); actions.spacing = 8
-        for (button, title, action) in [(copyButton,"Copy",#selector(copySelected)), (plainButton,"Copy Plain Text",#selector(copyPlain)), (useButton,"Use in Jack",#selector(insertInJack)), (pinButton,"Pin",#selector(togglePin)), (deleteButton,"Delete",#selector(deleteSelected))] {
+        for (button, title, action) in [(copyButton,"Copy",#selector(copySelected)), (plainButton,"Copy Plain Text",#selector(copyPlain)), (useButton,"Use in Jack",#selector(insertInJack)), (holdButton,"Hold This",#selector(holdSelected)), (pinButton,"Pin",#selector(togglePin)), (deleteButton,"Delete",#selector(deleteSelected))] {
             button.title = title; button.target = self; button.action = action; button.bezelStyle = .rounded; actions.addArrangedSubview(button)
         }
+        holdButton.toolTip = "Add the selected clipboard item to Jack’s Hold This shelf."
         copyButton.toolTip = "Copy the selected item, then use ⌘V in your app. Double-click a row to copy and close."
         useButton.toolTip = "Fill Jack’s input field without submitting it."
         textActions.addItem(withTitle: "Text Actions")
@@ -238,6 +242,7 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
         let entry = selected
         previewLoader.cancel()
         for button in [copyButton, plainButton, useButton, pinButton, deleteButton] { button.isEnabled = entry != nil }
+        holdButton.isEnabled = entry != nil && holdItem != nil
         plainButton.isEnabled = entry?.textRepresentation != nil; useButton.isEnabled = entry?.textRepresentation != nil
         if entry?.kind == .files {
             plainButton.toolTip = "Copy the file paths as text, one path per line."
@@ -256,7 +261,7 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
             detail.stringValue = "\(entry.kind.rawValue.capitalized) · \(entry.source)\n\(DateFormatter.localizedString(from: entry.date, dateStyle: .medium, timeStyle: .short))"
             preview.string = String(entry.text.prefix(ClipboardTextAction.previewLimit)) + (entry.text.count > ClipboardTextAction.previewLimit ? "\n\n[Preview shortened. Copy retains the full text.]" : "")
             if entry.kind == .image { preview.string = "Loading image preview…" }
-            if panel?.isVisible == true && (entry.kind == .image || (entry.kind == .files && entry.fileURLs.count == 1)) {
+            if table.window?.isVisible == true && (entry.kind == .image || (entry.kind == .files && entry.fileURLs.count == 1)) {
                 previewLoader.load(entry) { [weak self] thumbnail in
                     guard let self, self.selected?.id == entry.id else { return }
                     self.image.image = thumbnail
@@ -299,15 +304,28 @@ final class ClipboardWindow: NSObject, NSTableViewDataSource, NSTableViewDelegat
     @objc private func copyAndClose() { guard let entry = selected else { return }; history.copy(entry) { [weak self] ok in if ok { self?.close() } } }
     @objc private func togglePin() { if let entry = selected { history.togglePin(entry.id) } }
     @objc private func deleteSelected() { if let entry = selected { history.remove(entry.id) } }
-    @objc private func insertInJack() { guard let text = selected?.textRepresentation else { return }; if useText?(text) == true { close() } }
+    @objc private func holdSelected() {
+        guard let entry = selected, let holdItem else { return }
+        do {
+            try holdItem(entry)
+            status.stringValue = "Added to Hold This."
+            status.toolTip = status.stringValue
+            NSAccessibility.post(element: holdButton, notification: .announcementRequested,
+                                 userInfo: [.announcement: status.stringValue, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+        } catch {
+            status.stringValue = error.localizedDescription
+            status.toolTip = status.stringValue
+        }
+    }
+    @objc private func insertInJack() { guard let text = selected?.textRepresentation else { return }; useText?(text) }
     @objc private func clearHistory() {
-        guard !history.entries.isEmpty, let panel else { return }
+        guard !history.entries.isEmpty else { return }
         let alert = NSAlert(); alert.messageText = "Clear clipboard history?"
         alert.informativeText = "This removes saved items on this Mac. The current system clipboard is kept. You can keep pinned items or clear everything."
         alert.addButton(withTitle: "Clear Unpinned"); alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Clear All")
-        alert.beginSheetModal(for: panel) { [weak self] response in
-            if response == .alertFirstButtonReturn { self?.history.clear(keepPinned: true) }
-            else if response == .alertThirdButtonReturn { self?.history.clear(keepPinned: false) }
+        alert.presentInJack { [self] response in
+            if response == .alertFirstButtonReturn { history.clear(keepPinned: true) }
+            else if response == .alertThirdButtonReturn { history.clear(keepPinned: false) }
         }
     }
 }

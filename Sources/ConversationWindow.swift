@@ -1,6 +1,6 @@
 import AppKit
 
-// A separate compact reader keeps the response bubble at its normal size.
+// The transcript keeps its scroll position while new replies arrive.
 final class ConversationWindow: NSObject {
     private var panel: NSPanel?
     private let scroll = NSScrollView()
@@ -30,13 +30,14 @@ final class ConversationWindow: NSObject {
         super.init()
     }
     func show() {
-        let opening = panel?.isVisible != true
+        let opening = scroll.window?.isVisible != true
         if panel == nil { build() }
         refreshAppearance()
         panel?.level = UserDefaults.standard.object(forKey: "keepOnTop") as? Bool ?? true ? .floating : .normal
         refreshControls()
         NSApp.activate(ignoringOtherApps: true)
-        panel?.makeKeyAndOrderFront(nil)
+        if let nav = BubbleNavigation.current, let panel { nav.show(panel, title: "Conversation History") }
+        else { panel?.makeKeyAndOrderFront(nil) }
         if opening { render(followLatest: true) }
     }
     func refreshAppearance() { panel?.appearance = NSApp.appearance }
@@ -57,7 +58,7 @@ final class ConversationWindow: NSObject {
             : "Memory is off. Questions are sent individually and no conversation history is kept."
     }
     private func render(followLatest: Bool = false) {
-        panel?.contentView?.layoutSubtreeIfNeeded()
+        scroll.superview?.layoutSubtreeIfNeeded()
         let clip = scroll.contentView
         var origin = clip.bounds.origin
         let wasAtBottom = clip.documentRect.maxY - clip.bounds.maxY <= 2

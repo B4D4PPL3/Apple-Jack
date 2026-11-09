@@ -1,5 +1,4 @@
 import AppKit
-import Quartz
 import QuartzCore
 import AVFoundation
 
@@ -149,6 +148,7 @@ final class PetView: NSView {
     override func mouseEntered(with event: NSEvent) { pointerInside = true; refreshPose() }
     override func mouseExited(with event: NSEvent) { pointerInside = false; refreshPose() }
     func cancelPointerInteraction() {
+        (window as? GrabCursorPanel)?.grabEnded()
         drag.end(window: window)
         pressEvent = nil
         pointerInside = false
@@ -227,6 +227,7 @@ final class PetView: NSView {
         NSGraphicsContext.restoreGraphicsState()
     }
     override func mouseDown(with event: NSEvent) {
+        (window as? GrabCursorPanel)?.grabBegan()
         pressEvent = event
         drag.begin(at: NSEvent.mouseLocation, window: window)
         if event.clickCount == 1 { closedOnPreviousClick = false }
@@ -238,6 +239,7 @@ final class PetView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard let down = pressEvent else { return }
         let moved = drag.moved
+        (window as? GrabCursorPanel)?.grabEnded()
         drag.end(window: window)
         pressEvent = nil
         setDragPose(nil)
@@ -263,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     var pet: NSPanel!
     var petView: PetView!
     var controls: SpeechBubble!
+    private var navigation: BubbleNavigation?
     var status: NSStatusItem!
     private lazy var shortcutSetup = ShortcutSetup { [unowned self] in
         [SetupShortcut(title: "Ask Apple Jack", fileName: "Ask Apple Jack", configuredName: self.shortcutName,
@@ -273,8 +276,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
                        detail: "Read replies aloud with Siri via Shortcuts.")]
     }
     @objc private func setUpShortcuts() { shortcutSetup.show() }
-    private let petPicker = PetPicker()
     private let petFrameName = "AppleJackPet"
+    private let petPicker = PetPicker()
     var shortcutName: String {
         let saved = (UserDefaults.standard.string(forKey: "shortcut") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return saved.isEmpty ? "Ask Apple Jack" : saved
@@ -327,7 +330,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private let clipboardHistory = ClipboardHistory()
     private lazy var clipboardWindow: ClipboardWindow = {
         let window = ClipboardWindow(history: clipboardHistory)
-        window.useText = { [weak self] text in self?.useClipboardText(text) ?? false }
+        window.holdItem = { [heldItems] entry in try heldItems.hold(entry) }
+        window.useText = { [weak self] text in self?.useClipboardText(text) }
         window.canRunTextAction = { [weak self] in
             guard let self else { return false }
             return !self.isLaunching && !self.requestIsRunning && !self.speechInput.isActive
@@ -356,19 +360,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         }
     }
     private let keyboardShortcut = KeyboardShortcutController()
+    private let hideShortcut = KeyboardShortcutController(preferences: SavedShortcutPreferences(prefix: "hide"),
+                                                           defaultBinding: .defaultHide, signature: 0x414A4844)
+    private let headerLogo = BubbleLogoView()
+    private let commandShortcut = ShortcutRunner()
     private var pendingShortcutReveal = false
     let mediaControls = MediaControls()
     let nowPlaying = NowPlaying()
     private let playbackBadge = PlaybackBadge()
-    private var playingTitle: String?
+    private var playingSource: NowPlayingSnapshot?
 
     private func updatePlaybackBadge() {
-        guard let pet, pet.isVisible, controls?.isShown == false, let playingTitle else {
+        guard let pet, pet.isVisible, controls?.isShown == false, let playingSource else {
             playbackBadge.hide()
             return
         }
         let head = pet.convertPoint(toScreen: petView.convert(petView.headPoint, to: nil))
-        playbackBadge.show(title: playingTitle, above: head, in: pet, opacity: petView.characterOpacity)
+        playbackBadge.show(source: playingSource, above: head, in: pet, opacity: petView.characterOpacity)
     }
     var currentUtterance: AVSpeechUtterance?
     var audioReplyGeneration = 0
@@ -379,7 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private var generatingReply: Bool {
         return replyShortcut.isActive || codexReply.isActive || claudeReply.isActive
     }
-    private var actionRequestIsRunning: Bool { generatingReply || nativeOpenInProgress }
+    private var actionRequestIsRunning: Bool { generatingReply || commandShortcut.isActive || nativeOpenInProgress }
     private var requestIsRunning: Bool { actionRequestIsRunning || updateCommandInProgress }
     var reactionReset: DispatchWorkItem?
     private var launchLoadingWindow: LaunchLoadingWindow?
@@ -393,7 +401,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             guard let self = self else { return false }
             if self.petPicker.isBusy { return false }
             // The update command itself must not prevent Install & Restart.
-            return !self.isLaunching && !self.actionRequestIsRunning && !self.favorites.preventsInstallation && !self.mediaControls.isBusy && !self.nowPlaying.isOpeningSource
+            return self.navigation?.isEditing != true && !self.isLaunching && !self.actionRequestIsRunning && !self.favorites.preventsInstallation && !self.mediaControls.isBusy && !self.nowPlaying.isOpeningSource
                 && !self.speechInput.isActive && !self.synthesizer.isSpeaking && !self.shortcutSpeech.isActive
         }
         if UserDefaults.standard.string(forKey: AudioInputDevice.preferenceKey) == nil,
@@ -412,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = JackIcon.image(named: "leaf.fill", accessibilityDescription: "Apple Jack")
         status.menu = menu
-        pet = NSPanel(contentRect: NSRect(x: 120, y: 120, width: 240, height: 240), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        pet = GrabCursorPanel(contentRect: NSRect(x: 120, y: 120, width: 240, height: 240), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         pet.isOpaque = false; pet.backgroundColor = .clear; pet.hasShadow = false
         pet.level = keepOnTop ? .floating : .normal
         pet.hidesOnDeactivate = false
@@ -450,7 +458,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         }
         heldItems.deliveryError = { [weak self] in self?.holdThisShelf.present($0) }
         pet.contentView = view
+        (pet as? GrabCursorPanel)?.trackGrabAreas()
         createControls(); configureSpeech()
+        favorites.heldSource = heldItems
         favorites.canOpen = { [weak self] in
             guard let self = self else { return false }
             return !self.isLaunching && !self.requestIsRunning && !self.speechInput.isActive
@@ -460,6 +470,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         conversation.selectRoute(conversationRoute)
         keyboardShortcut.onPress = { [weak self] in self?.summonWithKeyboard() }
         keyboardShortcut.start()
+        hideShortcut.onPress = { [weak self] in
+            guard NSApp.modalWindow == nil else { return }
+            self?.hidePet()
+        }
+        hideShortcut.start()
         petPicker.canChange = { [weak self] in self?.isLaunching == false }
         petPicker.showSprites = { [weak self] in self?.petView.installSprites($0) }
         prepareSprites()
@@ -547,20 +562,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         controls.contentViewController = controller
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24), stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24)])
+        let home = NSView(frame: content.bounds)
+        home.autoresizingMask = [.width, .height]
+        content.addSubview(home)
+        let navigator = BubbleNavigation(bubble: controls, root: content, home: home,
+            reveal: { [weak self] in self?.showControls() },
+            restoreChat: { [weak self] in self?.responseLayout?.resizeNow() })
+        navigation = navigator
+        BubbleNavigation.current = navigator
+        controls.onBack = { [weak navigator] in
+            guard let navigator, navigator.isReading else { return false }
+            navigator.back()
+            return true
+        }
+        holdThisShelf.isFavorite = { [weak self] id in self?.favorites.store.entries.contains { $0.id == id } == true }
+        holdThisShelf.addFavorite = { [weak self] item in
+            guard let self else { return }
+            try self.favorites.store.addHeld(item, from: self.heldItems)
+        }
+        home.addSubview(stack)
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: home.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: home.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: home.topAnchor, constant: 24), stack.bottomAnchor.constraint(equalTo: home.bottomAnchor, constant: -24)])
         let header = NSStackView(); header.spacing = 8
-        let title = NSTextField(labelWithString: "Apple Jack"); title.font = .boldSystemFont(ofSize: 20)
+        let title = headerLogo
+        title.refresh()
+        title.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        title.heightAnchor.constraint(equalToConstant: 40).isActive = true
         title.setContentCompressionResistancePriority(.required, for: .horizontal)
         header.addArrangedSubview(title)
         let spacer = NSView(); header.addArrangedSubview(spacer)
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         title.toolTip = "Drag to move Jack and his speech bubble."
-        content.dragSurfaces = [title, spacer]
+        content.dragSurfaces = [title, spacer, home]
         playbackBadge.openSource = { [weak self] in self?.nowPlaying.openCurrentSource() }
         nowPlaying.selectionDidChange = { [weak self] key, snapshot, automaticKey in
             self?.mediaControls.selectSource(key, snapshot: snapshot, automaticKey: automaticKey)
-            self?.playingTitle = snapshot.flatMap { $0.playing && !$0.bundleIdentifier.isEmpty ? $0.title : nil }
+            self?.playingSource = snapshot.flatMap { $0.playing && !$0.bundleIdentifier.isEmpty ? $0 : nil }
             self?.updatePlaybackBadge()
         }
         mediaControls.openPlayer = { [weak self] in self?.nowPlaying.openCurrentSource() }
@@ -669,7 +705,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         // Dictation owns the field until it finishes or is cancelled.
         guard !speechInput.isActive else { return }
         prompt.stringValue = ""
-        controls.contentViewController?.view.window?.makeFirstResponder(prompt)
+        if navigation?.isReading != true { controls.contentViewController?.view.window?.makeFirstResponder(prompt) }
         if let editor = prompt.currentEditor() {
             editor.string = ""
             editor.selectedRange = NSRange(location: 0, length: 0)
@@ -677,9 +713,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     }
     // The bubble can become key but not main. The app delegate stays in Quick
     // Look's responder chain when the system panel takes keyboard focus.
-    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { holdThisShelf.hasPreviewItems }
-    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { holdThisShelf.beginPreview(panel) }
-    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { holdThisShelf.endPreview(panel) }
 
     @objc private func toggleRemoveAfterDrag() { HoldThisStore.removesAfterDrag.toggle() }
     @objc private func showClipboard() { clipboardWindow.show() }
@@ -689,12 +722,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         do { request = try action.request(for: text) }
         catch {
             let alert = NSAlert(); alert.messageText = "Couldn’t use this text"
-            alert.informativeText = error.localizedDescription; alert.runModal()
+            alert.informativeText = error.localizedDescription; alert.presentInJack()
             return false
         }
         let draft = prompt.currentEditor()?.string ?? prompt.stringValue
         let backend = AIBackend.selected
         let shortcut = backend == .chatGPT ? AIBackend.chatGPTShortcut : shortcutName
+        navigation?.reset()
         showControls()
         stopSpeaking()
         reactionReset?.cancel()
@@ -729,23 +763,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         result.string = conversation.enabled ? "New conversation. What would you like to talk about?" : "New conversation. Memory is off, so each question stands on its own."
         updateButtons()
     }
-    private func useClipboardText(_ text: String) -> Bool {
+    private func useClipboardText(_ text: String) {
         guard !requestIsRunning, !speechInput.isActive else {
             let alert = NSAlert(); alert.messageText = "Let Jack finish first"
             alert.informativeText = "Finish or cancel the current request or recording, then use this clipboard item."
-            alert.runModal(); return false
+            alert.presentInJack(); return
         }
         let draft = prompt.currentEditor()?.string ?? prompt.stringValue
+        func insertText() {
+            clipboardWindow.close()
+            navigation?.reset()
+            showControls()
+            prompt.stringValue = text
+            (prompt.currentEditor() as? NSTextView)?.string = text
+        }
         if !draft.isEmpty && draft != text {
             let alert = NSAlert(); alert.messageText = "Replace your current draft?"
             alert.informativeText = "This fills Jack’s input with the selected clipboard text. It won’t send it."
             alert.addButton(withTitle: "Replace Draft"); alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return false }
+            alert.presentInJack { response in
+                if response == .alertFirstButtonReturn { insertText() }
+            }
+            return
         }
-        showControls()
-        prompt.stringValue = text
-        (prompt.currentEditor() as? NSTextView)?.string = text
-        return true
+        insertText()
     }
     @objc func showPet() {
         if isLaunching {
@@ -772,6 +813,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         clipboardHistory.stop()
         favorites.cancel()
         keyboardShortcut.stop()
+        hideShortcut.stop()
+        commandShortcut.cancel()
         petView?.stopLocator()
         mediaControls.cancel()
         nowPlaying.stop()
@@ -786,7 +829,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         nowPlaying.start(showCard: true)
     }
     func popoverDidClose(_ notification: Notification) {
-        holdThisShelf.closePreview()
+        navigation?.reset()
         if pet.isVisible { nowPlaying.start(showCard: false) }
         cancelVoice()
         reactionReset?.cancel()
@@ -816,7 +859,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         }
         applyWindowLevel()
         controls.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
-        if !speechInput.isActive { controls.contentViewController?.view.window?.makeFirstResponder(prompt) }
+        if !speechInput.isActive, navigation?.isReading != true { controls.contentViewController?.view.window?.makeFirstResponder(prompt) }
         reactionReset?.cancel()
         updateRestingAnimation()
     }
@@ -843,7 +886,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     }
     @objc private func keyboardShortcutSettings() {
         let settings = KeyboardShortcutSettings()
-        settings.run(controller: keyboardShortcut)
+        settings.run(controller: keyboardShortcut, other: hideShortcut)
+    }
+    @objc private func hideShortcutSettings() {
+        KeyboardShortcutSettings().run(controller: hideShortcut, other: keyboardShortcut, hide: true)
+    }
+    @objc private func changeLogo(_ sender: NSMenuItem) {
+        guard let style = sender.representedObject as? String else { return }
+        UserDefaults.standard.set(style, forKey: BubbleLogoView.preference)
+        headerLogo.refresh()
     }
     @objc func shortcutSettings() {
         guard !requestIsRunning, !speechInput.isActive else { return }
@@ -857,17 +908,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else {
-            clearResponseActions()
-            result.string = "The shortcut name cannot be blank. Your previous setting is unchanged."
+        alert.presentInJack { [self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else {
+                clearResponseActions()
+                result.string = "The shortcut name cannot be blank. Your previous setting is unchanged."
+                showControls()
+                return
+            }
+            UserDefaults.standard.set(value, forKey: "shortcut")
+            conversation.selectRoute(conversationRoute)
             showControls()
-            return
         }
-        UserDefaults.standard.set(value, forKey: "shortcut")
-        conversation.selectRoute(conversationRoute)
-        showControls()
     }
     private func actionMenuItem(_ title: String, action: Selector) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -895,6 +948,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         ]
         characterItems.insert(petPicker.menuItem(), at: 0)
         menu.addItem(submenuItem("Appearance & Character", items: characterItems))
+        menu.addItem(submenuItem("Logo", items: ["Mono", "Classic"].map { name in
+            let item = actionMenuItem(name, action: #selector(changeLogo(_:)))
+            item.representedObject = name
+            return item
+        }))
         menu.addItem(favorites.menuItem())
         let memoryItem = actionMenuItem("Remember This Conversation", action: #selector(toggleConversationMemory))
         memoryItem.toolTip = "Keep recent AI messages until quit. Turning this off clears the history."
@@ -906,6 +964,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         menu.addItem(actionMenuItem("Clipboard History…", action: #selector(showClipboard)))
         menu.addItem(submenuItem("Speech & Input", items: [
             actionMenuItem("Keyboard Shortcut…", action: #selector(keyboardShortcutSettings)),
+            actionMenuItem("Hide Apple Jack Shortcut…", action: #selector(hideShortcutSettings)),
             actionMenuItem("Voice…", action: #selector(voiceSettings)),
             alwaysSpeakMenuItem(),
             clearInputMenuItem(),
@@ -921,6 +980,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         menu.addItem(.separator())
         menu.addItem(startAtLogin.menuItem())
         menu.addItem(actionMenuItem("Setup Guide", action: #selector(guide)))
+        menu.addItem(actionMenuItem("About Apple Jack…", action: #selector(aboutJack)))
     }
     private func configureSettingsMenu(_ menu: NSMenu) {
         if menu.delegate is FavoritesController { return }
@@ -953,17 +1013,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         let originalFrame = pet.frame
         let originalScale = Double(originalFrame.width / CharacterSize.baseSide)
         let settings = CharacterSliderSettings.size()
-        if let scale = settings.run(initial: originalScale, preview: { [weak self] scale in
+        settings.present(initial: originalScale, preview: { [weak self] scale in
             self?.applyCharacterScale(scale, anchoredTo: originalFrame)
-        }) {
-            UserDefaults.standard.set(scale, forKey: CharacterSize.preferenceKey)
-            applyCharacterScale(scale, anchoredTo: originalFrame)
-        } else {
-            pet.setFrame(originalFrame, display: true)
-            petView.needsDisplay = true
-            if controls.isShown { controls.positioningRect = CharacterSize.bubbleAnchor(in: petView.bounds) }
+        }) { [weak self] scale in
+            guard let self else { return }
+            if let scale {
+                UserDefaults.standard.set(scale, forKey: CharacterSize.preferenceKey)
+                self.applyCharacterScale(scale, anchoredTo: originalFrame)
+            } else {
+                self.pet.setFrame(originalFrame, display: true)
+                self.petView.needsDisplay = true
+                if self.controls.isShown { self.controls.positioningRect = CharacterSize.bubbleAnchor(in: self.petView.bounds) }
+            }
+            self.pet.saveFrame(usingName: self.petFrameName)
         }
-        pet.saveFrame(usingName: petFrameName)
     }
     @objc private func characterOpacitySettings() {
         guard !isLaunching else { return }
@@ -971,17 +1034,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         petView.stopLocator()
         let original = petView.characterOpacity
         let settings = CharacterSliderSettings.opacity()
-        let selected = settings.run(initial: original) { [weak self] value in
+        settings.present(initial: original, preview: { [weak self] value in
             self?.petView.characterOpacity = value
-        }
-        if let selected {
-            if selected == 1 {
-                UserDefaults.standard.removeObject(forKey: CharacterOpacity.preferenceKey)
-            } else {
-                UserDefaults.standard.set(selected, forKey: CharacterOpacity.preferenceKey)
+        }) { [weak self] selected in
+            if let selected {
+                if selected == 1 {
+                    UserDefaults.standard.removeObject(forKey: CharacterOpacity.preferenceKey)
+                } else {
+                    UserDefaults.standard.set(selected, forKey: CharacterOpacity.preferenceKey)
+                }
             }
+            self?.petView.characterOpacity = selected ?? original
         }
-        petView.characterOpacity = selected ?? original
     }
     private func applyCharacterScale(_ scale: Double, anchoredTo originalFrame: NSRect) {
         let screen = NSScreen.screens.filter { $0.visibleFrame.intersects(originalFrame) }.max {
@@ -1037,13 +1101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         showControls()
         let original = controls.frostAmount
         let settings = GlassFrostSettings()
-        if let amount = settings.run(initial: original, preview: { [weak self] amount in
+        settings.present(initial: original, preview: { [weak self] amount in
             self?.controls.frostAmount = amount
-        }) {
-            UserDefaults.standard.set(amount, forKey: GlassFrost.preferenceKey)
-            controls.frostAmount = amount
-        } else {
-            controls.frostAmount = original
+        }) { [weak self] amount in
+            if let amount { UserDefaults.standard.set(amount, forKey: GlassFrost.preferenceKey) }
+            self?.controls.frostAmount = amount ?? original
         }
     }
     @objc private func selectBubbleStyle(_ sender: NSMenuItem) {
@@ -1116,13 +1178,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         alert.accessoryView = field
         alert.addButton(withTitle: "Save"); alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
-        while alert.runModal() == .alertFirstButtonReturn {
+        alert.editInJack(validate: { [self] in
             let name = (field.currentEditor()?.string ?? field.stringValue).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { alert.informativeText = "Enter the exact name of your ChatGPT shortcut before saving."; continue }
+            guard !name.isEmpty else { alert.informativeText = "Enter the exact name of your ChatGPT shortcut before saving."; return false }
             AIBackend.chatGPTShortcut = name
             conversation.selectRoute(conversationRoute)
-            return
-        }
+            return true
+        })
     }
     private func alwaysSpeakMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Always Speak Responses", action: #selector(toggleAlwaysSpeakResponses), keyEquivalent: "")
@@ -1158,6 +1220,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         }
         if menuItem.action == #selector(newConversation) || menuItem.action == #selector(shortcutSettings) {
             return !isLaunching && !requestIsRunning && !speechInput.isActive
+        }
+        if menuItem.action == #selector(changeLogo(_:)) {
+            menuItem.state = menuItem.title == BubbleLogoView.style ? .on : .off
+            return true
         }
         if menuItem.action == #selector(keyboardShortcutSettings) {
             menuItem.toolTip = keyboardShortcut.errorMessage
@@ -1202,11 +1268,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         guard !requestIsRunning else { return }
         cancelVoice()
         let settings = VoiceSettings()
-        if let choice = settings.run() {
+        settings.present { choice in
+            guard let choice else { return }
             UserDefaults.standard.set(choice.identifier, forKey: ReplyVoice.preferenceKey)
             UserDefaults.standard.set(choice.shortcut, forKey: ReplyVoice.shortcutPreferenceKey)
         }
-        showControls()
     }
     @objc func microphoneSettings() {
         if speechInput.isActive { cancelVoice() }
@@ -1221,15 +1287,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
            let index = devices.firstIndex(where: { $0.uid == saved }) { picker.selectItem(at: index + 1) }
         alert.accessoryView = picker
         alert.addButton(withTitle: "Save"); alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let index = picker.indexOfSelectedItem
-        let uid = index > 0 ? devices[index - 1].uid : ""
-        UserDefaults.standard.set(uid, forKey: AudioInputDevice.preferenceKey)
-        showControls()
+        alert.presentInJack { [self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            let index = picker.indexOfSelectedItem
+            let uid = index > 0 ? devices[index - 1].uid : ""
+            UserDefaults.standard.set(uid, forKey: AudioInputDevice.preferenceKey)
+            showControls()
+        }
     }
     @objc func quit() { cancelVoice(); NSApp.terminate(nil) }
     @objc func openShortcuts() { NSWorkspace.shared.open(URL(string: "shortcuts://")!) }
-    @objc func guide() { NSWorkspace.shared.open(Bundle.main.url(forResource: "Setup", withExtension: "html")!) }
+    @objc func guide() {
+        if let url = Bundle.main.url(forResource: "Setup", withExtension: "html") { navigation?.guide(url) }
+    }
+    @objc private func aboutJack() { navigation?.about() }
     func configureSpeech() {
         synthesizer.delegate = self
         speechInput.onStatus = { [weak self] message in
@@ -1259,7 +1330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         let busy = requestIsRunning
         let speaking = currentUtterance != nil || shortcutSpeech.isActive
         copyReplyButton.isEnabled = copyableReply != nil
-        stopReplyButton.isEnabled = generatingReply || speaking
+        stopReplyButton.isEnabled = generatingReply || commandShortcut.isActive || speaking
         retryReplyButton.isEnabled = lastAIRequest != nil && !busy && !capturing
         clearReplyButton.isEnabled = canClearResponse
         responseActions.isHidden = copyableReply == nil && lastAIRequest == nil && !stopReplyButton.isEnabled
@@ -1374,6 +1445,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         updateButtons()
     }
     @objc private func stopResponse() {
+        if commandShortcut.isActive {
+            commandShortcut.cancel()
+            result.string = "Shortcut stopped."
+            updateRestingAnimation()
+            updateButtons()
+        }
         if generatingReply, let request = lastAIRequest {
             replyShortcut.cancel()
             codexReply.cancel()
@@ -1409,6 +1486,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         let replyGeneration = audioReplyGeneration
         reactionReset?.cancel()
         petView.play(.running)
+        if let name = ShortcutInputCommand.name(in: text) {
+            if name.isEmpty || name.hasPrefix("-") || name.count > 512 {
+                finishRequest(message: "Type run shortcut followed by its name, for example: run shortcut Quick Apps.",
+                              succeeded: false, prompt: text, speakReply: speakReply, generation: replyGeneration)
+                return
+            }
+            result.string = "Running \(name)…"
+            commandShortcut.run(shortcut: name) { [weak self] error in
+                self?.finishRequest(message: error ?? "Finished \(name).", succeeded: error == nil, prompt: text,
+                                    speakReply: speakReply, generation: replyGeneration)
+            }
+            updateButtons()
+            return
+        }
         if UpdateInputCommand.matches(text) {
             updateCommandInProgress = true
             result.string = "Checking for updates…"
@@ -1420,26 +1511,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             }
             return
         }
+        let explicitApp = AppOpenRequest.parse(text)
         let bareApp = AppOpenRequest.bareName(text)
-        let location = LocationOpenRequest.parse(text)
-        // A literal installed name such as Safari.app wins over the .app
-        // website suffix. Actual addresses/paths keep their existing priority.
-        if let request = location, bareApp?.name.lowercased().hasSuffix(".app") != true {
-            openRequestedLocation(request, prompt: text, speakReply: speakReply, generation: replyGeneration)
+        if let location = LocationOpenRequest.parse(text) {
+            // Give an installed app bundle name priority over the same .app domain.
+            if case .website(let url, _) = location, let name = (explicitApp ?? bareApp)?.name,
+               name.lowercased().hasSuffix(".app"), name.caseInsensitiveCompare(url.host ?? "") == .orderedSame {
+                openRequestedApp(AppOpenRequest(name: name, isBareName: true), prompt: text, speakReply: speakReply, generation: replyGeneration) { [weak self] in
+                    self?.openRequestedLocation(location, prompt: text, speakReply: speakReply, generation: replyGeneration)
+                }
+            } else {
+                openRequestedLocation(location, prompt: text, speakReply: speakReply, generation: replyGeneration)
+            }
             return
         }
-        if let request = AppOpenRequest.parse(text) {
+        if let request = explicitApp {
             openRequestedApp(request, prompt: text, speakReply: speakReply, generation: replyGeneration)
             return
         }
         if let request = bareApp {
             openRequestedApp(request, prompt: text, speakReply: speakReply, generation: replyGeneration) { [weak self] in
-                guard let self = self else { return }
-                if let location = location {
-                    self.openRequestedLocation(location, prompt: text, speakReply: speakReply, generation: replyGeneration)
-                } else {
-                    self.submitAIRequest(text, backend: backend, shortcut: shortcut, speakReply: speakReply, generation: replyGeneration)
-                }
+                self?.submitAIRequest(text, backend: backend, shortcut: shortcut, speakReply: speakReply, generation: replyGeneration)
             }
             return
         }
@@ -1492,14 +1584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         updateButtons()
     }
     private func openRequestedLocation(_ request: LocationOpenRequest, prompt text: String, speakReply: Bool, generation: Int) {
-        nativeOpenInProgress = true
-        switch request {
-        case .finder: result.string = "Opening in Finder…"
-        case .website: result.string = "Opening in Safari…"
-        case .invalid: result.string = "Checking the address…"
-        }
-        updateButtons()
-        NativeLocationOpener.open(request) { [weak self] outcome in
+        let complete: (Result<String, Error>) -> Void = { [weak self] outcome in
             guard let self = self else { return }
             switch outcome {
             case .success(let message):
@@ -1507,6 +1592,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             case .failure(let error):
                 self.finishRequest(message: error.localizedDescription, succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
             }
+        }
+        nativeOpenInProgress = true
+        updateButtons()
+        switch request {
+        case .finder(let url):
+            result.string = "Opening in Finder…"
+            NativeLocationOpener.openFinder(url, completion: complete)
+        case .website(let url, .defaultBrowser):
+            result.string = "Opening in your default browser…"
+            NativeLocationOpener.openInDefaultBrowser(url, completion: complete)
+        case .website(let url, .safari):
+            result.string = "Opening in Safari…"
+            NativeLocationOpener.openWebsites([url], completion: complete)
+        case .website(let url, .preview):
+            guard let navigation else {
+                finishRequest(message: "Jack’s speech bubble is unavailable.", succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
+                return
+            }
+            let preview = HeldItemPreview(items: [(UUID(), url)])
+            preview.present(in: navigation, title: "Website Preview", returnFocus: prompt)
+            complete(.success("Opened a preview of \(url.host ?? url.absoluteString)."))
+        case .invalid(let message):
+            finishRequest(message: message, succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
         }
     }
     private func openRequestedApp(_ request: AppOpenRequest, prompt text: String, speakReply: Bool, generation: Int, ifMissing: (() -> Void)? = nil) {
@@ -1526,9 +1634,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
                     self.finishRequest(message: "I couldn’t find an installed app matching “\(request.name)”. Try the name shown in Applications, for example: open Calendar.", succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
                     return
                 }
-                let selected: InstalledApp
+                func open(_ selected: InstalledApp) {
+                    self.result.string = "Opening \(selected.name)…"
+                    NativeAppLauncher.open(selected) { [weak self] outcome in
+                        guard let self = self else { return }
+                        switch outcome {
+                        case .success:
+                            self.finishRequest(message: "Opened \(selected.name).", succeeded: true, prompt: text, speakReply: speakReply, generation: generation)
+                        case .failure(let error):
+                            self.finishRequest(message: "I couldn’t open \(selected.name). \(error.localizedDescription)", succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
+                        }
+                    }
+                }
                 if matches.count == 1 {
-                    selected = matches[0]
+                    open(matches[0])
                 } else {
                     let alert = NSAlert()
                     alert.messageText = "Which app should Jack open?"
@@ -1541,24 +1660,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
                     }
                     alert.accessoryView = picker
                     alert.addButton(withTitle: "Open"); alert.addButton(withTitle: "Cancel")
-                    guard alert.runModal() == .alertFirstButtonReturn else {
-                        self.nativeOpenInProgress = false
-                        self.lastReply = ""
-                        self.result.string = "App opening canceled."
-                        self.updateButtons()
-                        self.updateRestingAnimation()
-                        return
-                    }
-                    selected = matches[picker.indexOfSelectedItem]
-                }
-                self.result.string = "Opening \(selected.name)…"
-                NativeAppLauncher.open(selected) { [weak self] outcome in
-                    guard let self = self else { return }
-                    switch outcome {
-                    case .success:
-                        self.finishRequest(message: "Opened \(selected.name).", succeeded: true, prompt: text, speakReply: speakReply, generation: generation)
-                    case .failure(let error):
-                        self.finishRequest(message: "I couldn’t open \(selected.name). \(error.localizedDescription)", succeeded: false, prompt: text, speakReply: speakReply, generation: generation)
+                    alert.presentInJack { response in
+                        guard response == .alertFirstButtonReturn else {
+                            self.nativeOpenInProgress = false
+                            self.lastReply = ""
+                            self.result.string = "App opening canceled."
+                            self.updateButtons()
+                            self.updateRestingAnimation()
+                            return
+                        }
+                        open(matches[picker.indexOfSelectedItem])
                     }
                 }
             }

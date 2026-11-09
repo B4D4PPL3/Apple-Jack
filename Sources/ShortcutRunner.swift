@@ -89,3 +89,17 @@ final class ShortcutRunner {
         }
     }
 }
+
+enum ShortcutInputCommand {
+    static func name(in input: String) -> String? {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["run shortcut", "shortcut"] {
+            if text.caseInsensitiveCompare(prefix) == .orderedSame { return "" }
+            if let range = text.range(of: prefix, options: [.anchored, .caseInsensitive]),
+               text[range.upperBound...].first?.isWhitespace == true {
+                return text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return nil
+    }
+}

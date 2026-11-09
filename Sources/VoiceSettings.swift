@@ -39,7 +39,7 @@ final class VoiceSettings: NSObject, AVSpeechSynthesizerDelegate {
     private var voices: [AVSpeechSynthesisVoice] = []
 
     // nil means Cancel; an empty identifier selects the automatic voice.
-    func run() -> VoiceChoice? {
+    func present(completion: @escaping (VoiceChoice?) -> Void) {
         let preferredLanguage = (Locale.preferredLanguages.first ?? Locale.current.identifier).prefix(2)
         voices = AVSpeechSynthesisVoice.speechVoices().sorted {
             let leftPreferred = $0.language.hasPrefix(preferredLanguage)
@@ -85,17 +85,20 @@ final class VoiceSettings: NSObject, AVSpeechSynthesizerDelegate {
         alert.window.initialFirstResponder = picker
         synthesizer.delegate = self
         selectionChanged()
-        defer { stopPreview() }
-        while alert.runModal() == .alertFirstButtonReturn {
+        var choice: VoiceChoice?
+        alert.editInJack(validate: { [self] in
             let id = picker.selectedItem?.representedObject as? String ?? ""
             let name = shortcutField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if id == ReplyVoice.shortcutIdentifier && name.isEmpty {
                 alert.informativeText = "Enter the name of the shortcut that will speak Jack’s responses, such as Jack Voice Test."
-                continue
+                return false
             }
-            return VoiceChoice(identifier: id, shortcut: name.isEmpty ? ReplyVoice.shortcutName : name)
+            choice = VoiceChoice(identifier: id, shortcut: name.isEmpty ? ReplyVoice.shortcutName : name)
+            return true
+        }) { [self] saved in
+            stopPreview()
+            completion(saved ? choice : nil)
         }
-        return nil
     }
     private static func label(_ voice: AVSpeechSynthesisVoice) -> String {
         let language = Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language

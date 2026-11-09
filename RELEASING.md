@@ -2,16 +2,22 @@
 
 Publish only when the maintainer has signed off on a stable version and separately requested its public release. A private beta build, stable promotion, source commit, or tag does not publish this edition.
 
+## Screenshots for each public update
+
+Capture the changes since the previous public release using the public build and realistic sample content. Embed the screenshots beside the corresponding features in the GitHub Release notes. Show the control a user interacts with and the result. Use a short sequence when one image cannot show both. Give each image descriptive alt text and a caption that tells the reader what to try.
+
+Update the README feature gallery when a new feature belongs there or an existing image shows an outdated interface. Use the release’s tag in image links in the release notes so older releases keep their original screenshots. Check the rendered images at normal reading size before publishing.
+
 ## Unnotarized preview
 
-For the approved 0.52 preview, use the verified public-edition disk image from `dist/local/`. Copy it as `Apple-Jack-0.52-preview-macOS.dmg`. From the directory containing the copy, run:
+For the approved 0.54 preview, use the verified public-edition disk image from `dist/local/`. Copy it as `Apple-Jack-0.54-preview-macOS.dmg`. From the directory containing the copy, run:
 
 ```sh
-shasum -a 256 Apple-Jack-0.52-preview-macOS.dmg > Apple-Jack-0.52-preview-macOS.dmg.sha256
-shasum -a 256 -c Apple-Jack-0.52-preview-macOS.dmg.sha256
+shasum -a 256 Apple-Jack-0.54-preview-macOS.dmg > Apple-Jack-0.54-preview-macOS.dmg.sha256
+shasum -a 256 -c Apple-Jack-0.54-preview-macOS.dmg.sha256
 ```
 
-Create a GitHub Release for tag `v0.52-preview.1` from the public source commit and select **Set as a pre-release**. Attach the DMG and checksum. Include the first-launch instructions from the README and explain that preview updates are manual. Verify the checksum against a fresh download after publishing.
+Create a GitHub Release for tag `v0.54-preview.1` from the public source commit and select **Set as a pre-release**. Attach the DMG and checksum. Include the first-launch instructions from the README and explain that preview updates are manual. Verify the checksum against a fresh download after publishing.
 
 ## Notarized release
 
