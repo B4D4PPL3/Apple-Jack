@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "bundleIdentifier": "com.fonz.applejack.public",
-  "version": "0.55",
-  "build": 140,
+  "version": "0.56",
+  "build": 143,
   "minimumSystemVersion": "13.0",
   "architecture": "universal",
-  "file": "Apple-Jack-0.55-preview-macOS.dmg",
-  "sha256": "c28f87516f5a45f43d233baeaded69ead5844db4a9091a857777029ba834acef",
-  "notes": "Apple Jack 0.55 adds signed in-app updates, App Icon / Apple Jack Name / Custom Text headers, an independent Liquid Glass Blur slider, and a clearer guided shortcut setup. Claude remains Beta. This is an unnotarized preview. Moving from 0.54 or earlier requires one manual install; future public updates use this update window.",
+  "file": "Apple-Jack-0.56-preview-macOS.dmg",
+  "sha256": "9d4c6f89f9b2cd1d23e15339e19ac109cf71cb376a00a577542de7096dea0322",
+  "notes": "Apple Jack 0.56 renames Pets to Companions and adds Apple Jack (Classic), the original AppleJack Pixel character, as a built-in companion alongside Apple Jack and Fonz. Open Menu \u2192 Appearance & Character \u2192 Companions to preview and choose. Existing imported characters remain available. The illustrated Setup Guide includes the new choices. Claude remains Beta. This is an unnotarized preview.",
   "channel": "stable",
-  "releaseTag": "v0.55-preview.1",
-  "sparkleEdSignature": "fXcLj1hZff1Rp799MJ7D64hVfTvW4cdj31yEWI7RYkTtMlzo0GtU1dX4dLb48I/us0wAM6ORXnlSg9atVW6LAw==",
-  "sparkleLength": 12825060
+  "releaseTag": "v0.56-preview.1",
+  "sparkleEdSignature": "TMo33OKWXn/GFbHlBW8UK39I7OxFVe80q5GYub0PhprlIzPu+SOJ17mUa9469Iv8KPeweR3sdJ9w834OCxzlCg==",
+  "sparkleLength": 15561160
 }

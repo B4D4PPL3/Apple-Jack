@@ -26,7 +26,7 @@ final class PetPicker: NSObject, NSMenuItemValidation {
     }
 
     func menuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Pets", action: #selector(showPets), keyEquivalent: "")
+        let item = NSMenuItem(title: "Companions", action: #selector(showPets), keyEquivalent: "")
         item.target = self
         return item
     }
@@ -43,7 +43,7 @@ final class PetPicker: NSObject, NSMenuItemValidation {
             button.action = action
         }
         refreshLibrary(selecting: selectedID ?? BundledPet.appleJack.rawValue)
-        navigation.show("Pets", body: view, size: view.frame.size) { [weak self, weak view] in
+        navigation.show("Companions", body: view, size: view.frame.size) { [weak self, weak view] in
             view?.list.cancelPreview()
             self?.page = nil
         }
@@ -53,7 +53,7 @@ final class PetPicker: NSObject, NSMenuItemValidation {
         guard let page else { return }
         let pet = page.selection
         let current = pet?.id == (selectedID ?? BundledPet.appleJack.rawValue)
-        page.use.title = current ? "In Use" : "Use Pet"
+        page.use.title = current ? "In Use" : "Use Companion"
         page.use.isEnabled = !isBusy && pet != nil && !current
         page.add.isEnabled = !isBusy
         page.remove.isEnabled = !isBusy && pet.map { BundledPet(rawValue: $0.id) == nil } == true
@@ -100,7 +100,7 @@ final class PetPicker: NSObject, NSMenuItemValidation {
                 case .success(nil): self.refreshLibrary()
                 case .failure(let error):
                     let alert = NSAlert(error: error)
-                    alert.messageText = "Couldn’t change the pet"
+                    alert.messageText = "Couldn’t change the companion"
                     alert.informativeText = error.localizedDescription
                     alert.presentInJack()
                 }
@@ -188,8 +188,8 @@ final class PetPicker: NSObject, NSMenuItemValidation {
 }
 
 private final class PetLibraryPage: NSView {
-    let list = PetPreviewList(label: "Your pets")
-    let use = NSButton(title: "Use Pet", target: nil, action: nil)
+    let list = PetPreviewList(label: "Your companions")
+    let use = NSButton(title: "Use Companion", target: nil, action: nil)
     let add = NSButton(title: "Import ChatGPT Pet…", target: nil, action: nil)
     let remove = NSButton(title: "Remove…", target: nil, action: nil)
     let auto = NSButton(checkboxWithTitle: "Automatically Import All ChatGPT Pets", target: nil, action: nil)

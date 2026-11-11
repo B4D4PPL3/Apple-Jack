@@ -76,12 +76,22 @@ struct ImportedPet: Equatable {
 // Use the existing content IDs so pets saved by older releases resolve to the bundled artwork.
 enum BundledPet: String, CaseIterable {
     case appleJack = "99afee06221957853f83074c67105835c7e6eef8feb18d1b7aac66640ceaa444"
+    case appleJackClassic = "4832a234072bf09920ec9efd86a33f761e8e0e03fa59aed1a9afda06efdf0b02"
     case fonz = "59da52d1c0ec269fb7873dcb50e664fabfc7eccfeb0f95d1bda9ff9818302a1d"
 
     var name: String {
         switch self {
         case .appleJack: return "Apple Jack"
+        case .appleJackClassic: return "Apple Jack (Classic)"
         case .fonz: return "Fonz"
+        }
+    }
+
+    var spriteFilename: String {
+        switch self {
+        case .appleJack: return "AppleJackPet.png"
+        case .appleJackClassic: return "AppleJackClassicPet.png"
+        case .fonz: return "FonzPet.png"
         }
     }
 
@@ -89,8 +99,8 @@ enum BundledPet: String, CaseIterable {
         guard let resources else { throw SpriteLoader.LoadError(name: name) }
         switch self {
         case .appleJack: return try SpriteLoader.load(from: resources, progress: progress)
-        case .fonz:
-            return try SpriteLoader.loadAtlas(resources.appendingPathComponent("Sprites/FonzPet.png"), petName: name, progress: progress)
+        case .appleJackClassic, .fonz:
+            return try SpriteLoader.loadAtlas(resources.appendingPathComponent("Sprites/" + spriteFilename), petName: name, progress: progress)
         }
     }
 }
@@ -159,8 +169,7 @@ struct ImportedPets {
         let url: URL
         if let bundled = BundledPet(rawValue: id) {
             guard let resources else { return nil }
-            let filename = bundled == .appleJack ? "AppleJackPet.png" : "FonzPet.png"
-            url = resources.appendingPathComponent("Sprites/" + filename)
+            url = resources.appendingPathComponent("Sprites/" + bundled.spriteFilename)
             if !FileManager.default.fileExists(atPath: url.path) {
                 return (try? bundled.load(from: resources, progress: { _ in }))?[PetAnimation.idle.rawValue]?.frames.first?.image
             }

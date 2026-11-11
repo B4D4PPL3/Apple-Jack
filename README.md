@@ -2,19 +2,33 @@
 
 **A customizable desktop companion for macOS with AI chat and everyday Mac tools.**
 
-Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your companion to chat with ChatGPT in its speech bubble, pause your music, or find a link you copied earlier. To move a file between windows, drop it onto your companion, switch windows, and drag it out where you need it.
+Choose Apple Jack, Apple Jack (Classic), or Fonz, or bring a companion you designed in ChatGPT. Click your companion to chat with ChatGPT in its speech bubble, pause your music, or find a link you copied earlier. To move a file between windows, drop it onto your companion, switch windows, and drag it out where you need it.
 
 ![Apple Jack stands with his arms crossed beneath a pointed speech bubble with the Classic logo, Music controls, and a playlist conversation. Control–Shift–Space shows Jack.](Docs/Screenshots/desktop.jpg)
 
-**[Download the 0.55 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.55-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+**[Download the 0.56 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.56-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
 ## Feature gallery
 
+### Companions: choose your company
+
+The former **Pets** screen is now **Companions**. Open **Menu → Appearance & Character → Companions** to see Apple Jack, Apple Jack (Classic), Fonz, and your imported characters. Select a row for a live preview, then choose **Use Companion**. **In Use** identifies the companion already on your desktop. All three built-in companions are included and available offline.
+
+![The public 0.56 Companions screen lists Apple Jack, Apple Jack (Classic), and Fonz. Classic is selected with a live preview and In Use status, and stands beneath the pointed speech bubble.](Docs/Screenshots/companions.jpg)
+
+### Apple Jack (Classic)
+
+The original AppleJack Pixel character joins the built-in collection as **Apple Jack (Classic)**, complete with his animated wave, jump, and run. Select him from Companions; no download or import is needed. Existing imported characters stay available.
+
+![Apple Jack (Classic) demonstrates his wave, jump, and running poses from the bundled animation sheet. Choose him in Companions and click Use Companion.](Docs/Screenshots/apple-jack-classic.jpg)
+
 ### ChatGPT and custom pets
 
-**Bring your own character.** Choose **Menu → Appearance & Character → Pets** to see Apple Jack, Fonz, and your imported characters. Select a character to preview it, then click **Use Pet**. **Import ChatGPT Pet…** lets you browse your ChatGPT companions or choose a PNG or WebP sprite sheet. Turn on **Automatically Import All ChatGPT Pets** on the Pets page to keep your collection up to date.
+**Bring your own character.** Choose **Menu → Appearance & Character → Companions** to see the built-in companions and your imported characters. Select a character to preview it, then click **Use Companion**. **Import ChatGPT Pet…** lets you browse your ChatGPT companions or choose a PNG or WebP sprite sheet. Turn on **Automatically Import All ChatGPT Pets** on the Companions page to keep your collection up to date.
 
 ![ChatGPT companions. Fonz waves, jumps, and runs beside the Pets screen, where he is selected and the Import ChatGPT Pet and Use Pet buttons are visible.](Docs/Screenshots/chatgpt-pets.jpg)
+
+*Custom-companion example from an earlier version. In 0.56, Pets is named Companions and Use Pet is named Use Companion.*
 
 **Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → Shortcuts → Set Up Shortcuts…** and add **Ask Apple Jack (ChatGPT)**. An **Installed** label confirms the shortcut is in your library; complete the ChatGPT extension setup on the same page, then choose **Try ChatGPT**. Press Enter to send the sample question. A returned answer confirms the connection. You can also type your own question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
@@ -56,7 +70,7 @@ Jack matches the previous, play/pause, and next buttons to the waveform color of
 
 ### Conversation history
 
-Open **History** to revisit a reply or switch assistants. Clipboard history, pet selection, settings, the Setup Guide, and conversation history all open inside the speech bubble. Use **Back** in the upper-left corner to return to your draft.
+Open **History** to revisit a reply or switch assistants. Clipboard history, companion selection, settings, the Setup Guide, and conversation history all open inside the speech bubble. Use **Back** in the upper-left corner to return to your draft.
 
 ![Conversation History appears inside the bubble with a Back button, an assistant picker, and two sample questions and replies.](Docs/Screenshots/conversation.jpg)
 
@@ -86,13 +100,15 @@ Starting with 0.55, choose **Menu → Updates → Check for Updates…**, or typ
 
 ## Install
 
-Apple Jack 0.55 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
+Apple Jack 0.56 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
 
-1. Download `Apple-Jack-0.55-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.55 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.55-preview.1).
+1. Download `Apple-Jack-0.56-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.56 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.56-preview.1).
 2. Open the disk image, drag **Apple Jack Public** into **Applications**, and open it from there.
 3. If macOS says it cannot verify the developer and you trust this download, open **System Settings → Privacy & Security** and choose **Open Anyway** for Apple Jack Public. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
 
-**Moving from 0.54 or earlier:** install 0.55 manually once—quit Apple Jack Public and replace the previous copy in Applications. Your saved items and preferences stay on this Mac. Future public versions can be installed through **Menu → Updates → Check for Updates…**. The illustrated Setup Guide is available from Jack’s menu.
+**Already on 0.55:** choose **Menu → Updates → Check for Updates…** or type `update`, then follow the update window to install 0.56 and restart.
+
+**Moving from 0.54 or earlier:** install 0.56 manually once—quit Apple Jack Public and replace the previous copy in Applications. Your saved items and preferences stay on this Mac. Future public versions can be installed through **Menu → Updates → Check for Updates…**. The illustrated Setup Guide is available from Jack’s menu.
 
 Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. For Claude, open **Menu → AI Assistant → Claude Code Setup…**, sign in through Claude Code with an eligible account, and choose **Claude (Beta)**. Replies appear in Jack’s bubble using your Claude Code account. Local desktop features work without an AI account.
 

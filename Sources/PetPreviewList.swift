@@ -31,7 +31,7 @@ final class PetPreviewList: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.setAccessibilityLabel(label)
         for (name, width) in [("Pet", 165.0), ("Source", 70.0)] {
             let column = NSTableColumn(identifier: .init(name))
-            column.title = name
+            column.title = name == "Pet" ? "Companion" : name
             column.width = width
             table.addTableColumn(column)
         }
