@@ -26,7 +26,9 @@ private final class ReleaseProtocol: URLProtocol {
             expectFailure { _ = try GitHubUpdates.repositoryURL(invalid) }
         }
         let repo = try GitHubUpdates.repositoryURL("example/apple-jack")
-        let url = repo.appendingPathComponent("releases/latest/download/latest.json")
+        let url = GitHubUpdates.manifestURL(in: repo)
+        precondition(url.absoluteString == "https://raw.githubusercontent.com/example/apple-jack/main/Updates/latest.json")
+        precondition(GitHubUpdates.feedURL(in: repo).absoluteString == "https://raw.githubusercontent.com/example/apple-jack/main/Updates/appcast.xml")
         var image = Data("koly".utf8)
         image.append(Data(repeating: 0, count: 508))
         let digest = SHA256.hash(data: image).map { String(format: "%02x", $0) }.joined()
@@ -42,6 +44,29 @@ private final class ReleaseProtocol: URLProtocol {
         let release = try await GitHubUpdates.check(url:url,session:session)
         precondition(release.isNewer(than:114) && !release.isNewer(than:115))
         precondition(GitHubUpdates.assetURL(for:release,in:repo).absoluteString == "https://github.com/example/apple-jack/releases/download/v0.52/Apple-Jack-0.52-macOS.dmg")
+        expectFailure { try release.requireSparkleSignature() }
+        manifest["releaseTag"] = "v0.52-preview.1"
+        manifest["file"] = "Apple-Jack-0.52-preview-macOS.dmg"
+        manifest["sparkleEdSignature"] = Data(repeating: 1, count: 64).base64EncodedString()
+        manifest["sparkleLength"] = 512
+        let preview = try UpdateRelease.decode(encoded())
+        try preview.requireSparkleSignature()
+        precondition(GitHubUpdates.assetURL(for:preview,in:repo).absoluteString == "https://github.com/example/apple-jack/releases/download/v0.52-preview.1/Apple-Jack-0.52-preview-macOS.dmg")
+        for tag in ["../escape", "v0.53-preview.1", "v0.52-preview.0", "v0.52-preview.1?token=x"] {
+            manifest["releaseTag"] = tag
+            expectFailure { _ = try UpdateRelease.decode(encoded()) }
+        }
+        manifest["releaseTag"] = "v0.52-preview.1"
+        for signature in ["invalid", Data(repeating: 1, count: 63).base64EncodedString(), ""] {
+            manifest["sparkleEdSignature"] = signature
+            expectFailure { try UpdateRelease.decode(encoded()).requireSparkleSignature() }
+        }
+        manifest["sparkleEdSignature"] = Data(repeating: 1, count: 64).base64EncodedString()
+        for size in [0, 511, 1_073_741_825] {
+            manifest["sparkleLength"] = size
+            expectFailure { try UpdateRelease.decode(encoded()).requireSparkleSignature() }
+        }
+        manifest["sparkleLength"] = 512
         ReleaseProtocol.status = 404
         do { _ = try await GitHubUpdates.check(url:url,session:session); preconditionFailure() } catch UpdateError.missingRelease {}
         for (key,bad) in [("channel","beta"), ("bundleIdentifier","com.fonz.applejack.desktop"), ("file","../evil.dmg"), ("architecture","arm64")] {
@@ -59,6 +84,6 @@ private final class ReleaseProtocol: URLProtocol {
         image[511] = 1
         try image.write(to:scratch)
         expectFailure { _ = try GitHubUpdates.verifiedImage(scratch,release:release) }
-        print("PASS GitHub release selection, unmapped local build, missing release, private/beta rejection, installer filename, digest, and altered download checks.")
+        print("PASS HTTPS feed routing, version-pinned preview assets, signing metadata, missing release, private/beta rejection, installer filename, digest, and altered download checks.")
     }
 }

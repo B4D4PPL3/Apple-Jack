@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Apple Jack Public Updates</title>
+    <link>https://github.com/B4D4PPL3/Apple-Jack</link>
+    <item>
+      <title>Apple Jack 0.55</title>
+      <pubDate>Wed, 11 Nov 2026 18:13:46 +0000</pubDate>
+      <description>Apple Jack 0.55 adds signed in-app updates, App Icon / Apple Jack Name / Custom Text headers, an independent Liquid Glass Blur slider, and a clearer guided shortcut setup. Claude remains Beta. This is an unnotarized preview. Moving from 0.54 or earlier requires one manual install; future public updates use this update window.</description>
+      <sparkle:version>140</sparkle:version>
+      <sparkle:shortVersionString>0.55</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <enclosure sparkle:edSignature="fXcLj1hZff1Rp799MJ7D64hVfTvW4cdj31yEWI7RYkTtMlzo0GtU1dX4dLb48I/us0wAM6ORXnlSg9atVW6LAw==" url="https://github.com/B4D4PPL3/Apple-Jack/releases/download/v0.55-preview.1/Apple-Jack-0.55-preview-macOS.dmg" length="12825060" type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

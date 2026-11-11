@@ -6,7 +6,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 ![Apple Jack stands with his arms crossed beneath a pointed speech bubble with the Classic logo, Music controls, and a playlist conversation. Control–Shift–Space shows Jack.](Docs/Screenshots/desktop.jpg)
 
-**[Download the 0.54 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.54-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+**[Download the 0.55 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.55-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
 ## Feature gallery
 
@@ -16,7 +16,7 @@ Choose Apple Jack or Fonz, or bring a pet you designed in ChatGPT. Click your co
 
 ![ChatGPT companions. Fonz waves, jumps, and runs beside the Pets screen, where he is selected and the Import ChatGPT Pet and Use Pet buttons are visible.](Docs/Screenshots/chatgpt-pets.jpg)
 
-**Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → Shortcuts → Set Up Shortcuts…** and add **Ask Apple Jack (ChatGPT)**. If it says **Already Added**, you’re ready to use it. Then choose **Menu → AI Assistant → ChatGPT**, click your pet, and type a question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
+**Chat in your pet’s speech bubble.** On a Mac that supports Apple Intelligence with ChatGPT enabled, open **Menu → Shortcuts → Set Up Shortcuts…** and add **Ask Apple Jack (ChatGPT)**. An **Installed** label confirms the shortcut is in your library; complete the ChatGPT extension setup on the same page, then choose **Try ChatGPT**. Press Enter to send the sample question. A returned answer confirms the connection. You can also type your own question or use **Speak to Jack**. You can use ChatGPT with any character, and you can use your custom pet with any of Jack’s assistants.
 
 ### Hold This and clipboard history
 
@@ -60,15 +60,39 @@ Open **History** to revisit a reply or switch assistants. Clipboard history, pet
 
 ![Conversation History appears inside the bubble with a Back button, an assistant picker, and two sample questions and replies.](Docs/Screenshots/conversation.jpg)
 
+### Make the header your own
+
+Open **Menu → Logo** to choose **Mono**, **Classic**, **App Icon**, **Apple Jack Name**, or **Custom Text…**. Custom Text lets you enter your own header and save it for this Mac. Mono follows the light or dark appearance.
+
+![Three fresh public-build header close-ups show App Icon, Apple Jack Name, and the custom text Orchard Studio.](Docs/Screenshots/header-options.jpg)
+
+### Tune Liquid Glass
+
+Choose **Menu → Appearance & Character → Speech Bubble → Liquid Glass Blur…**. Drag the slider for a live preview, then **Save**. **Reset to 0%** restores the native effect; **Cancel** restores your previous setting. Blur works independently of **Liquid Glass Frost**, and text and controls stay sharp. Native Liquid Glass requires macOS 26 or later.
+
+![The Liquid Glass Blur page shows a 55% preview and Reset to 0%.](Docs/Screenshots/liquid-glass-blur.jpg)
+
+### Guided setup, at your pace
+
+**Menu → Shortcuts → Set Up Shortcuts…** walks through installing the three included shortcuts, enabling the Mac’s ChatGPT extension, and trying a first question. Signing into the ChatGPT app alone does not enable the extension. **Continue without AI Setup** leaves pets, Hold This, clipboard history, Favorites, media controls, and app, folder, and website launching available.
+
+![Fresh setup detail views show the Installed labels, ChatGPT setup instructions, Try ChatGPT, the session reply status, and Continue without AI Setup.](Docs/Screenshots/guided-setup.jpg)
+
+### Updates inside Jack
+
+Starting with 0.55, choose **Menu → Updates → Check for Updates…**, or type `update`. When a newer public version is available, follow the update window to download it and **Install & Restart**. Turn on **Check for Updates at Startup** to check when Jack opens; an up-to-date startup check stays quiet. Update downloads are verified with Sparkle’s signed-update system.
+
+![The public Updates submenu contains Check for Updates and Check for Updates at Startup. Install 0.55 once; future public updates arrive through this menu.](Docs/Screenshots/in-app-updates.jpg)
+
 ## Install
 
-Apple Jack 0.54 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
+Apple Jack 0.55 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
 
-1. Download `Apple-Jack-0.54-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.54 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.54-preview.1).
+1. Download `Apple-Jack-0.55-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.55 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.55-preview.1).
 2. Open the disk image, drag **Apple Jack Public** into **Applications**, and open it from there.
 3. If macOS says it cannot verify the developer and you trust this download, open **System Settings → Privacy & Security** and choose **Open Anyway** for Apple Jack Public. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
 
-To update from an earlier public preview, quit Apple Jack Public and replace the previous copy in Applications. The illustrated Setup Guide is available from Jack’s menu. This preview uses manual updates. [Check GitHub Releases for updates](https://github.com/B4D4PPL3/Apple-Jack/releases).
+**Moving from 0.54 or earlier:** install 0.55 manually once—quit Apple Jack Public and replace the previous copy in Applications. Your saved items and preferences stay on this Mac. Future public versions can be installed through **Menu → Updates → Check for Updates…**. The illustrated Setup Guide is available from Jack’s menu.
 
 Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. For Claude, open **Menu → AI Assistant → Claude Code Setup…**, sign in through Claude Code with an eligible account, and choose **Claude (Beta)**. Replies appear in Jack’s bubble using your Claude Code account. Local desktop features work without an AI account.
 
@@ -98,4 +122,4 @@ Favorites, imported pets, held items, and clipboard history live under `~/Librar
 
 ## Licenses
 
-Original code and documentation use the [MIT license](LICENSE). The bundled characters and app icon have [separate artwork terms](ARTWORK.md). MediaRemoteAdapter ships under [BSD-3-Clause](ThirdParty/MediaRemoteAdapter/LICENSE). It uses macOS private media APIs, so Now Playing availability can vary by player and OS version.
+Original code and documentation use the [MIT license](LICENSE). The bundled characters and app icon have [separate artwork terms](ARTWORK.md). Sparkle ships under its [permissive license](ThirdParty/Sparkle/LICENSE). MediaRemoteAdapter ships under [BSD-3-Clause](ThirdParty/MediaRemoteAdapter/LICENSE). It uses macOS private media APIs, so Now Playing availability can vary by player and OS version.

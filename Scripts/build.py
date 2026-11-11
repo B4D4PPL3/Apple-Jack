@@ -19,11 +19,14 @@ def run(*command):
     subprocess.run([str(arg) for arg in command], check=True)
 
 def build(output, identity, repository):
+    run('python3', root/'Scripts/fetch-sparkle.py')
+    sparkle = root/'ThirdParty/Sparkle'
     info = plistlib.loads((resources / "Info.plist").read_bytes())
     if repository:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*", repository):
             raise ValueError("Use a GitHub repository in owner/name format")
         info["AppleJackGitHubRepository"] = repository
+        info['SUFeedURL'] = f'https://raw.githubusercontent.com/{repository}/main/Updates/appcast.xml'
     if identity != "-" and (not repository or not identity.startswith("Developer ID Application: ")):
         raise ValueError("Supply the repository and a Developer ID Application identity for distribution")
     output.mkdir(parents=True, exist_ok=True)
@@ -47,7 +50,7 @@ def build(output, identity, repository):
             target = arch + "-apple-macos13.0"
             flags = ["xcrun","swiftc","-O","-swift-version","5","-target",target,"-module-cache-path",output/"modules",
                      "-file-prefix-map",str(root)+"=."]
-            run(*flags,*core,"-o",tmp/("jack-"+arch))
+            run(*flags,'-F',sparkle,'-framework','Sparkle','-Xlinker','-rpath','-Xlinker','@executable_path/../Frameworks',*core,"-o",tmp/("jack-"+arch))
             run(*flags,"-parse-as-library",*helper,"-o",tmp/("updater-"+arch))
             run("xcrun","clang","-dynamiclib","-target",target,"-O2","-fobjc-arc",
                 "-ffile-prefix-map="+str(root)+"=.","-Werror=unguarded-availability-new",
@@ -64,6 +67,8 @@ def build(output, identity, repository):
             CFBundleName="MediaRemoteAdapter",CFBundlePackageType="FMWK",CFBundleVersion="1",LSMinimumSystemVersion="13.0")))
         for link, target in [("Versions/Current","A"),("Resources","Versions/Current/Resources"),("MediaRemoteAdapter","Versions/Current/MediaRemoteAdapter")]:
             (framework/link).symlink_to(target)
+        sparkle_framework = contents/'Frameworks/Sparkle.framework'
+        shutil.copytree(sparkle/'Sparkle.framework',sparkle_framework,symlinks=True)
         dest = contents/"Resources"
         for name in ["AppleJackMac.icns","applejack-media.pl"]:
             shutil.copyfile(resources/name,dest/name)
@@ -80,8 +85,13 @@ def build(output, identity, repository):
         shutil.copyfile(upstream/"bin/mediaremote-adapter.pl",dest/"mediaremote-adapter.pl")
         for path,name in [(upstream/"LICENSE","MediaRemoteAdapter-LICENSE.txt"),(root/"LICENSE","LICENSE.txt"),(root/"ARTWORK.md","ARTWORK.txt")]:
             shutil.copyfile(path,dest/name)
+        shutil.copyfile(sparkle/'LICENSE',dest/'Sparkle-LICENSE.txt')
         flags = ["--force","--sign",identity]
         if identity != "-": flags += ["--options","runtime","--timestamp"]
+        if identity != '-':
+            for nested in ['Versions/B/XPCServices/Downloader.xpc','Versions/B/XPCServices/Installer.xpc','Versions/B/Updater.app','Versions/B/Autoupdate']:
+                if (sparkle_framework/nested).exists(): run('codesign',*flags,sparkle_framework/nested)
+            run('codesign',*flags,sparkle_framework)
         run("codesign",*flags,framework)
         run("codesign",*flags,contents/"Helpers/AppleJackUpdater")
         app_flags = ["--entitlements",root/"Resources/Distribution.entitlements"] if identity != "-" else []

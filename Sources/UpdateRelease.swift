@@ -18,6 +18,9 @@ struct UpdateRelease: Codable {
     let sha256: String
     let notes: String
     let channel: String?
+    var releaseTag: String? = nil
+    var sparkleEdSignature: String? = nil
+    var sparkleLength: Int? = nil
 
     var releaseChannel: UpdateChannel { UpdateChannel(rawValue: channel ?? "stable") ?? .stable }
 
@@ -38,7 +41,9 @@ struct UpdateRelease: Codable {
               !release.file.isEmpty, release.file.count < 240,
               release.file == (release.file as NSString).lastPathComponent,
               !release.file.contains("\\"), !release.file.hasPrefix("."),
-              release.file == "Apple-Jack-\(release.version)-macOS.dmg",
+              ["Apple-Jack-\(release.version)-macOS.dmg", "Apple-Jack-\(release.version)-preview-macOS.dmg"].contains(release.file),
+              release.releaseTag == nil || release.releaseTag == "v\(release.version)" ||
+                release.releaseTag?.range(of: "^v" + NSRegularExpression.escapedPattern(for: release.version) + "-preview\\.[1-9][0-9]*$", options: .regularExpression) != nil,
               release.file.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }),
               release.sha256.range(of: "^[a-fA-F0-9]{64}$", options: .regularExpression) != nil,
               release.notes.count <= 8_000 else { throw UpdateError.invalidRelease }
@@ -46,6 +51,13 @@ struct UpdateRelease: Codable {
     }
 
     func isNewer(than installedBuild: Int) -> Bool { build > installedBuild }
+
+    func requireSparkleSignature() throws {
+        guard let signature = sparkleEdSignature, Data(base64Encoded: signature)?.count == 64,
+              let size = sparkleLength, (512...1_073_741_824).contains(size) else {
+            throw UpdateError.invalidRelease
+        }
+    }
 
     func supports(_ system: OperatingSystemVersion) -> Bool {
         guard let required = Self.systemVersionParts(minimumSystemVersion) else { return false }

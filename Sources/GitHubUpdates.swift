@@ -26,8 +26,17 @@ enum GitHubUpdates {
     }
 
     static func check() async throws -> UpdateRelease {
-        let url = try repository().appendingPathComponent("releases/latest/download/latest.json")
+        let url = try manifestURL(in: repository())
         return try await check(url: url, session: .shared)
+    }
+
+    static func manifestURL(in repository: URL) -> URL {
+        URL(string: "https://raw.githubusercontent.com")!.appendingPathComponent(repository.path)
+            .appendingPathComponent("main/Updates/latest.json")
+    }
+
+    static func feedURL(in repository: URL) -> URL {
+        manifestURL(in: repository).deletingLastPathComponent().appendingPathComponent("appcast.xml")
     }
 
     static func check(url: URL, session: URLSession) async throws -> UpdateRelease {
@@ -44,7 +53,7 @@ enum GitHubUpdates {
 
     static func assetURL(for release: UpdateRelease, in repo: URL) -> URL {
         // Use the versioned asset even if a new latest release appears mid-update.
-        repo.appendingPathComponent("releases/download/v" + release.version).appendingPathComponent(release.file)
+        repo.appendingPathComponent("releases/download/" + (release.releaseTag ?? "v" + release.version)).appendingPathComponent(release.file)
     }
 
     static func download(_ release: UpdateRelease) async throws -> URL {

@@ -13,7 +13,12 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
     private var isChecking = false
     var quitForUpdate: (() -> Void)?
     var canInstall: (() -> Bool)?
-    var isBusy: Bool { work != nil }
+    private lazy var sparkle: SparkleUpdates = {
+        let updates = SparkleUpdates()
+        updates.canInstall = { [weak self] in self?.canInstall?() ?? false }
+        return updates
+    }()
+    var isBusy: Bool { work != nil || sparkle.isBusy }
 
     init(defaults: UserDefaults = .standard,
          applicationInfo: [String: Any] = Bundle.main.infoDictionary ?? [:],
@@ -64,7 +69,7 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
             menuItem.state = defaults.bool(forKey: startupKey) ? .on : .off
             return true
         }
-        return work == nil || isChecking
+        return !sparkle.isBusy && (work == nil || isChecking)
     }
 
     @objc private func check() {
@@ -72,7 +77,7 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
     }
 
     private func beginCheck(trigger: UpdateCheckTrigger, completion: ((UpdateCheckReport) -> Void)? = nil) {
-        guard work == nil || isChecking else { completion?(.busy); return }
+        guard !sparkle.isBusy, work == nil || isChecking else { completion?(.busy); return }
         // Replace only manifest checks, never an installation in progress.
         // A late result from the old channel must not close the newer UI.
         work?.cancel()
@@ -89,7 +94,6 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
         work = Task { @MainActor [weak self] in
             guard let self = self else { return }
             var report = UpdateCheckReport.canceled
-            var installationRequested = false
             defer {
                 if self.activeCheckID == id {
                     self.closeProgress()
@@ -128,53 +132,8 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
                     _ = self.presentAlert(alert)
                     return
                 }
-                report = UpdateCheckReport(message: "Apple Jack \(release.version) is available on the \(channel.title) channel. Choose Check for Updates to install it when you’re ready.", succeeded: true)
-                alert.messageText = "Apple Jack \(release.version) is available (\(channel.title))"
-                alert.informativeText = "You have version \(version).\n\n\(release.notes)\n\nInstall & Restart will close Apple Jack, update this copy in place, and reopen it. Your settings and Shortcuts stay in place."
-                alert.addButton(withTitle: "Install & Restart")
-                alert.addButton(withTitle: "Later")
-                let choice = self.presentAlert(alert)
-                guard choice == .alertFirstButtonReturn else { return }
-                installationRequested = true
-                guard self.canInstall?() != false else {
-                    throw InstallFailure(message: "Let Jack finish the current request or stop speaking/recording, then install the update.")
-                }
-                self.showProgress("Preparing and verifying the update…")
-                let installer = try await GitHubUpdates.download(release)
-                defer { try? FileManager.default.removeItem(at: installer.deletingLastPathComponent()) }
-                let target = Bundle.main.bundleURL
-                let pid = ProcessInfo.processInfo.processIdentifier
-                let plan = try await Task.detached(priority: .userInitiated) {
-                    try UpdateInstallation.prepare(installer, release: release, target: target, parentPID: pid)
-                }.value
-                var handedOff = false
-                defer { if !handedOff { try? FileManager.default.removeItem(at: plan.directory) } }
-                try Task.checkCancellation()
-                guard self.canInstall?() != false else {
-                    throw InstallFailure(message: "A request started while the update was preparing. Finish it, then install again.")
-                }
-                let helper = plan.directory.appendingPathComponent("Installer")
-                try FileManager.default.copyItem(at: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/AppleJackUpdater"), to: helper)
-                let process = Process()
-                process.executableURL = helper
-                process.arguments = [plan.file.path]
-                process.standardOutput = FileHandle.nullDevice
-                process.standardError = FileHandle.nullDevice
-                try process.run()
-                let deadline = Date().addingTimeInterval(15)
-                while !FileManager.default.fileExists(atPath: plan.armed.path) {
-                    if Task.isCancelled || !process.isRunning || Date() >= deadline {
-                        if process.isRunning { process.terminate() }
-                        try Task.checkCancellation()
-                        throw InstallFailure(message: "The updater couldn’t start. Your installed app has not changed.")
-                    }
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                }
-                if Task.isCancelled { process.terminate(); throw CancellationError() }
-                try Data().write(to: plan.proceed, options: .atomic)
-                handedOff = true
-                self.closeProgress()
-                self.quitForUpdate?()
+                try self.sparkle.begin(release: release)
+                report = UpdateCheckReport(message: "Apple Jack \(release.version) is available. Follow the update window to install and restart.", succeeded: true)
             } catch is CancellationError {
                 // Cancel closes the progress window without an error alert.
                 report = .canceled
@@ -183,7 +142,7 @@ final class AppUpdates: NSObject, NSMenuItemValidation {
                 self.isChecking = false
                 self.closeProgress()
                 report = UpdateCheckReport(message: "Couldn’t check or complete the \(channel.title.lowercased()) update: \(error.localizedDescription)", succeeded: false)
-                guard trigger == .menu || installationRequested else { return }
+                guard trigger == .menu else { return }
                 let alert = NSAlert()
                 alert.messageText = "Couldn’t complete the update"
                 alert.informativeText = error.localizedDescription

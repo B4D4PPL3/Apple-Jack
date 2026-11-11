@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "bundleIdentifier": "com.fonz.applejack.public",
+  "version": "0.55",
+  "build": 140,
+  "minimumSystemVersion": "13.0",
+  "architecture": "universal",
+  "file": "Apple-Jack-0.55-preview-macOS.dmg",
+  "sha256": "c28f87516f5a45f43d233baeaded69ead5844db4a9091a857777029ba834acef",
+  "notes": "Apple Jack 0.55 adds signed in-app updates, App Icon / Apple Jack Name / Custom Text headers, an independent Liquid Glass Blur slider, and a clearer guided shortcut setup. Claude remains Beta. This is an unnotarized preview. Moving from 0.54 or earlier requires one manual install; future public updates use this update window.",
+  "channel": "stable",
+  "releaseTag": "v0.55-preview.1",
+  "sparkleEdSignature": "fXcLj1hZff1Rp799MJ7D64hVfTvW4cdj31yEWI7RYkTtMlzo0GtU1dX4dLb48I/us0wAM6ORXnlSg9atVW6LAw==",
+  "sparkleLength": 12825060
+}

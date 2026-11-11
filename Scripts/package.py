@@ -59,6 +59,7 @@ def package(args):
         for item in ["LICENSE","ARTWORK.md"]:
             shutil.copyfile(root/item,contents/item)
         shutil.copyfile(root/"ThirdParty/MediaRemoteAdapter/LICENSE",contents/"MediaRemoteAdapter License.txt")
+        shutil.copyfile(root/'ThirdParty/Sparkle/LICENSE',contents/'Sparkle License.txt')
         dmg = tmp/name
         run("hdiutil","create","-srcfolder",contents,"-volname","Apple Jack Public","-fs","HFS+","-format","UDZO",dmg)
         if public:

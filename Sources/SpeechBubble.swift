@@ -74,9 +74,14 @@ final class BubbleContentView: NSView {
     var dragPose: ((PetAnimation?) -> Void)?
     private var drag = PetWindowDrag()
 
+    private func keepsScrollInteraction(_ view: NSView) -> Bool {
+        if view is FavoritesListScrollView || view.enclosingScrollView is FavoritesListScrollView { return true }
+        let setup = NSUserInterfaceItemIdentifier("AppleJackShortcutSetup")
+        return view.identifier == setup || view.enclosingScrollView?.identifier == setup
+    }
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
-        if hit is FavoritesListScrollView || hit.enclosingScrollView is FavoritesListScrollView { return hit }
+        if keepsScrollInteraction(hit) { return hit }
         if hit is BubblePage || (hit.superview is BubblePage && hit is NSTextField) || hit is NSStackView || dragSurfaces.contains(where: { $0 === hit }) { return self }
         return hit
     }
@@ -86,7 +91,7 @@ final class BubbleContentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
-        if let hit = hitTest(point), hit is FavoritesListScrollView || hit.enclosingScrollView is FavoritesListScrollView { return }
+        if let hit = hitTest(point), keepsScrollInteraction(hit) { return }
         (window as? GrabCursorPanel)?.grabBegan()
         drag.begin(at: NSEvent.mouseLocation, window: petWindow)
     }
@@ -122,6 +127,7 @@ final class SpeechBubble: NSObject {
         }
     }
     var frostAmount = GlassFrost.saved { didSet { refreshAppearance() } }
+    var blurAmount = GlassBlur.saved { didSet { refreshAppearance() } }
     var animates = true
     var positioningRect = NSRect.zero { didSet { reposition() } }
     private var panel: BubblePanel?
@@ -141,7 +147,7 @@ final class SpeechBubble: NSObject {
         // The window also owns the field editor used by an active draft.
         panel?.appearance = NSApp.effectiveAppearance
         contentViewController?.view.appearance = nil
-        surface?.applyAppearance(NSApp.effectiveAppearance, frostAmount: frostAmount)
+        surface?.applyAppearance(NSApp.effectiveAppearance, frostAmount: frostAmount, blurAmount: blurAmount)
     }
 
     func show(relativeTo rect: NSRect, of view: NSView) {
@@ -309,10 +315,13 @@ struct GlassBubbleOutline {
 private final class BubbleSurface: NSView {
     private let host = NSView()
     private let clip = CAShapeLayer()
+    private let foregroundClip = CAShapeLayer()
     private let edge = CAShapeLayer()
     private let frost = CALayer()
     private let content: NSView
     private var frostedEffect: NSVisualEffectView?
+    private var blurEffect: NSView?
+    private let blurClip = CAShapeLayer()
     private var geometry: (size: NSSize, tailAtBottom: Bool, tailX: CGFloat)?
 
     init(content: NSView, size: NSSize, style: SpeechBubbleStyle) {
@@ -330,8 +339,26 @@ private final class BubbleSurface: NSView {
             glass.tintColor = nil
             glass.wantsLayer = true
             glass.layer?.mask = clip
-            host.layer?.addSublayer(frost)
-            glass.contentView = host
+            // Blend the native regular glass backdrop into clear glass. AppKit
+            // owns its blur radius; this controls the extra blur's contribution.
+            let blur = NSGlassEffectView(frame: host.bounds)
+            blur.style = .regular
+            blur.cornerRadius = 0
+            blur.tintColor = nil
+            blur.contentView = NSView(frame: host.bounds)
+            blur.wantsLayer = true
+            blur.layer?.mask = blurClip
+            blur.autoresizingMask = [.width, .height]
+            blur.isHidden = true
+            blurEffect = blur
+            let tint = NSView(frame: host.bounds)
+            tint.autoresizingMask = [.width, .height]
+            tint.wantsLayer = true
+            tint.layer?.addSublayer(frost)
+            host.addSubview(tint)
+            // Foreground tint and controls stay above both backdrop effects.
+            glass.contentView = NSView(frame: bounds)
+            host.layer?.mask = foregroundClip
             backdrop = glass
         } else {
             let effect = NSVisualEffectView()
@@ -346,6 +373,10 @@ private final class BubbleSurface: NSView {
         backdrop.autoresizingMask = [.width, .height]
         host.frame = backdrop.bounds
         addSubview(backdrop)
+        if let blur = blurEffect {
+            addSubview(blur)
+            addSubview(host)
+        }
         content.appearance = nil
         content.autoresizingMask = []
         host.addSubview(content)
@@ -365,12 +396,15 @@ private final class BubbleSurface: NSView {
         return content
     }
 
-    func applyAppearance(_ appearance: NSAppearance, frostAmount: Double) {
+    func applyAppearance(_ appearance: NSAppearance, frostAmount: Double, blurAmount: Double) {
         self.appearance = appearance
         let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         edge.strokeColor = (dark ? NSColor.white.withAlphaComponent(0.28) : NSColor.black.withAlphaComponent(0.18)).cgColor
         CATransaction.begin(); CATransaction.setDisableActions(true)
         frost.backgroundColor = (dark ? NSColor.black : NSColor.white).withAlphaComponent(GlassFrost.tintAlpha(frostAmount)).cgColor
+        let blur = GlassBlur.normalized(blurAmount)
+        blurEffect?.alphaValue = CGFloat(blur)
+        blurEffect?.isHidden = blur == 0
         CATransaction.commit()
     }
     func arrange(size: NSSize, tailAtBottom: Bool, tailX: CGFloat) {
@@ -380,16 +414,19 @@ private final class BubbleSurface: NSView {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         setFrameSize(NSSize(width: size.width, height: size.height + 12))
         clip.frame = bounds; clip.path = outline
+        foregroundClip.frame = bounds; foregroundClip.path = outline
+        blurClip.frame = bounds; blurClip.path = outline
         edge.frame = bounds; edge.path = outline
         frost.frame = bounds
-        if let effect = frostedEffect {
-            effect.maskImage = NSImage(size: bounds.size, flipped: false) { _ in
+        if frostedEffect != nil {
+            let mask = NSImage(size: bounds.size, flipped: false) { _ in
                 guard let context = NSGraphicsContext.current?.cgContext else { return false }
                 context.addPath(outline)
                 context.setFillColor(NSColor.white.cgColor)
                 context.fillPath()
                 return true
             }
+            frostedEffect?.maskImage = mask
         }
         content.frame = NSRect(x: 0, y: tailAtBottom ? 12 : 0, width: size.width, height: size.height)
         CATransaction.commit()

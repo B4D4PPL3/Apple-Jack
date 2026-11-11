@@ -267,13 +267,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     var controls: SpeechBubble!
     private var navigation: BubbleNavigation?
     var status: NSStatusItem!
-    private lazy var shortcutSetup = ShortcutSetup { [unowned self] in
+    private lazy var shortcutSetup: ShortcutSetup = {
+        let setup = ShortcutSetup { [unowned self] in
         [SetupShortcut(title: "Ask Apple Jack", fileName: "Ask Apple Jack", configuredName: self.shortcutName,
                        detail: "Answer in Jack’s bubble with Apple Intelligence."),
          SetupShortcut(title: "Ask Apple Jack (ChatGPT)", fileName: "Ask Apple Jack (ChatGPT)", configuredName: AIBackend.chatGPTShortcut,
                        detail: "Answer with the Mac’s ChatGPT extension."),
          SetupShortcut(title: "Siri Voice", fileName: "Jack Voice Test", configuredName: ReplyVoice.shortcutName,
                        detail: "Read replies aloud with Siri via Shortcuts.")]
+        }
+        setup.tryChatGPT = { [weak self] in self?.beginChatGPTSetupQuestion() ?? false }
+        setup.continueWithoutAI = { [weak self] in
+            self?.navigation?.reset()
+            self?.showControls()
+        }
+        return setup
+    }()
+    private func beginChatGPTSetupQuestion() -> Bool {
+        guard !isLaunching, !requestIsRunning, !speechInput.isActive, navigation?.isEditing != true else { return false }
+        let item = NSMenuItem()
+        item.representedObject = AIBackend.chatGPT.rawValue
+        selectAssistant(item)
+        navigation?.reset()
+        showControls()
+        let draft = prompt.currentEditor()?.string ?? prompt.stringValue
+        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            prompt.stringValue = "Say hello in one short sentence."
+        }
+        prompt.window?.makeFirstResponder(prompt)
+        updateButtons()
+        return true
     }
     @objc private func setUpShortcuts() { shortcutSetup.show() }
     private let petFrameName = "AppleJackPet"
@@ -585,9 +608,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         let header = NSStackView(); header.spacing = 8
         let title = headerLogo
         title.refresh()
-        title.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        title.widthAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
+        title.widthAnchor.constraint(lessThanOrEqualToConstant: 160).isActive = true
         title.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        title.setContentCompressionResistancePriority(.required, for: .horizontal)
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         header.addArrangedSubview(title)
         let spacer = NSView(); header.addArrangedSubview(spacer)
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -893,6 +917,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     }
     @objc private func changeLogo(_ sender: NSMenuItem) {
         guard let style = sender.representedObject as? String else { return }
+        if style == "Custom Text" {
+            let alert = NSAlert()
+            alert.messageText = "Custom Header Text"
+            alert.informativeText = "Choose the text shown in the top-left corner of Jack’s speech bubble. Long text is shortened to leave room for the media controls."
+            let field = NSTextField(string: BubbleLogoView.customText)
+            field.frame = NSRect(x: 0, y: 0, width: 390, height: 26)
+            field.placeholderString = "Apple Jack"
+            field.setAccessibilityLabel("Custom header text")
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = field
+            alert.editInJack(validate: { [weak self] in
+                let value = BubbleLogoView.normalizedText(field.stringValue)
+                guard !value.isEmpty else {
+                    alert.informativeText = "Enter a name or message for the header. It cannot be blank."
+                    return false
+                }
+                UserDefaults.standard.set(value, forKey: BubbleLogoView.customTextPreference)
+                UserDefaults.standard.set(style, forKey: BubbleLogoView.preference)
+                self?.headerLogo.refresh()
+                return true
+            })
+            return
+        }
         UserDefaults.standard.set(style, forKey: BubbleLogoView.preference)
         headerLogo.refresh()
     }
@@ -948,8 +997,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         ]
         characterItems.insert(petPicker.menuItem(), at: 0)
         menu.addItem(submenuItem("Appearance & Character", items: characterItems))
-        menu.addItem(submenuItem("Logo", items: ["Mono", "Classic"].map { name in
-            let item = actionMenuItem(name, action: #selector(changeLogo(_:)))
+        menu.addItem(submenuItem("Logo", items: BubbleLogoView.styles.map { name in
+            let item = actionMenuItem(name == "Custom Text" ? "Custom Text…" : name, action: #selector(changeLogo(_:)))
             item.representedObject = name
             return item
         }))
@@ -1093,6 +1142,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         frost.target = self
         frost.toolTip = "Choose Liquid Glass, then adjust its frost with a live preview."
         menu.addItem(frost)
+        let blur = NSMenuItem(title: "Liquid Glass Blur…", action: #selector(glassBlurSettings), keyEquivalent: "")
+        blur.target = self
+        blur.toolTip = "Choose Liquid Glass, then adjust background blur with a live preview."
+        menu.addItem(blur)
         parent.submenu = menu
         return parent
     }
@@ -1115,6 +1168,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         UserDefaults.standard.set(style.rawValue, forKey: SpeechBubbleStyle.preferenceKey)
         controls.refreshStyle()
         applyWindowLevel()
+    }
+    @objc private func glassBlurSettings() {
+        guard !isLaunching, SpeechBubbleStyle.selected == .liquidGlass else { return }
+        showControls()
+        let original = controls.blurAmount
+        let settings = GlassBlurSettings()
+        settings.present(initial: original, preview: { [weak self] amount in
+            self?.controls.blurAmount = amount
+        }) { [weak self] amount in
+            if let amount { UserDefaults.standard.set(amount, forKey: GlassBlur.preferenceKey) }
+            self?.controls.blurAmount = amount ?? original
+        }
     }
     private func keepOnTopMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Keep on Top", action: #selector(toggleKeepOnTop), keyEquivalent: "")
@@ -1222,8 +1287,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             return !isLaunching && !requestIsRunning && !speechInput.isActive
         }
         if menuItem.action == #selector(changeLogo(_:)) {
-            menuItem.state = menuItem.title == BubbleLogoView.style ? .on : .off
-            return true
+            menuItem.state = (menuItem.representedObject as? String) == BubbleLogoView.style ? .on : .off
+            return !isLaunching && navigation?.isEditing != true
         }
         if menuItem.action == #selector(keyboardShortcutSettings) {
             menuItem.toolTip = keyboardShortcut.errorMessage
@@ -1239,7 +1304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             menuItem.state = style == SpeechBubbleStyle.selected ? .on : .off
             return !isLaunching && (style != .liquidGlass || SpeechBubbleStyle.glassAvailable)
         }
-        if menuItem.action == #selector(glassFrostSettings) {
+        if menuItem.action == #selector(glassFrostSettings) || menuItem.action == #selector(glassBlurSettings) {
             return !isLaunching && SpeechBubbleStyle.glassAvailable && SpeechBubbleStyle.selected == .liquidGlass
         }
         if menuItem.action == #selector(characterSizeSettings) || menuItem.action == #selector(characterOpacitySettings) { return !isLaunching }
@@ -1559,10 +1624,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             case .success(let text):
                 let hasReply = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 self.conversation.finish(exchange, reply: text, succeeded: hasReply)
+                if backend == .chatGPT || backend == .shortcut {
+                    self.shortcutSetup.recordReply(shortcut: shortcut, receivedText: hasReply)
+                }
                 message = hasReply ? text : "Shortcut completed."
                 succeeded = true
             case .failure(let error):
                 self.conversation.finish(exchange, reply: "", succeeded: false)
+                if backend == .chatGPT || backend == .shortcut {
+                    self.shortcutSetup.recordReply(shortcut: shortcut, receivedText: false)
+                }
                 message = backend == .chatGPT
                     ? "ChatGPT couldn’t reply. Check Menu → AI Assistant → ChatGPT Shortcut Settings.\n\n" + error.localizedDescription
                     : error.localizedDescription

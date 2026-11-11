@@ -19,7 +19,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.54</string>
+	<string>0.55</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -32,7 +32,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>132</string>
+	<string>140</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>LSUIElement</key>
@@ -48,5 +48,17 @@
 	<string>Apple Jack uses your microphone only when you choose Speak to Jack, to capture your spoken request.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Apple Jack turns your spoken request into text. Apple speech recognition may process audio on Apple servers when on-device recognition is unavailable.</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUPublicEDKey</key>
+	<string>4jNNihz4s6rfQMxwtghbQB61MM37FY64TEXp8dEuydg=</string>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

@@ -1,3 +1,6 @@
 /build/
 /dist/
 .DS_Store
+
+/ThirdParty/Sparkle/Sparkle.framework/
+/ThirdParty/Sparkle/bin/
