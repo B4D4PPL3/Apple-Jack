@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "bundleIdentifier": "com.fonz.applejack.public",
-  "version": "0.56",
-  "build": 143,
+  "version": "0.59",
+  "build": 153,
   "minimumSystemVersion": "13.0",
   "architecture": "universal",
-  "file": "Apple-Jack-0.56-preview-macOS.dmg",
-  "sha256": "9d4c6f89f9b2cd1d23e15339e19ac109cf71cb376a00a577542de7096dea0322",
-  "notes": "Apple Jack 0.56 renames Pets to Companions and adds Apple Jack (Classic), the original AppleJack Pixel character, as a built-in companion alongside Apple Jack and Fonz. Open Menu \u2192 Appearance & Character \u2192 Companions to preview and choose. Existing imported characters remain available. The illustrated Setup Guide includes the new choices. Claude remains Beta. This is an unnotarized preview.",
+  "file": "Apple-Jack-0.59-preview-macOS.dmg",
+  "sha256": "63cd86f166649931f8d45396b28b794c4861036507301f2394fad3bb938fe77f",
+  "notes": "Apple Jack 0.59 adds an optional ChatGPT plan connection, compact Codex usage, and three customizable shortcuts for showing, centering, and hiding Jack. Click links in answers or conversation history. Use Add to Hold This on a link, selected text, or through macOS Services. This public preview supports Apple silicon and Intel on macOS 13 or later.",
   "channel": "stable",
-  "releaseTag": "v0.56-preview.1",
-  "sparkleEdSignature": "TMo33OKWXn/GFbHlBW8UK39I7OxFVe80q5GYub0PhprlIzPu+SOJ17mUa9469Iv8KPeweR3sdJ9w834OCxzlCg==",
-  "sparkleLength": 15561160
+  "releaseTag": "v0.59-preview.1",
+  "sparkleEdSignature": "QaaTtBQttGgckCvKmzBaWrj1el0YvCApjegmRzXYPh/K9lXcJCkhHQr0kFVEI/HZTlKlUBj5GuF49DkrGh5LDg==",
+  "sparkleLength": 15918792
 }

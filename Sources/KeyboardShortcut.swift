@@ -4,7 +4,8 @@ import Carbon
 struct JackShortcut: Codable, Equatable {
     let keyCode: UInt32
     let modifiers: UInt32
-    static let defaultShortcut = JackShortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | shiftKey))
+    static let defaultShortcut = JackShortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey))
+    static let defaultCenter = JackShortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | shiftKey))
     static let defaultHide = JackShortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: UInt32(controlKey | shiftKey))
     static let modifierMask = UInt32(controlKey | optionKey | shiftKey | cmdKey)
     var isValid: Bool {
@@ -80,6 +81,17 @@ struct NativeShortcutRegistration: ShortcutRegistrationBackend {
 final class SavedShortcutPreferences: ShortcutPreferences {
     private let bindingKey: String
     private let enabledKey: String
+    // The former Show default is reassigned to Center & Show by this release.
+    // Other saved combinations and every enabled/disabled choice are preserved.
+    static func migrateShowDefault(in defaults: UserDefaults = .standard) {
+        let marker = "centerShortcutDefaultsVersion"
+        guard defaults.integer(forKey: marker) < 1 else { return }
+        if let data = defaults.data(forKey: "summonShortcutBinding"),
+           let binding = try? JSONDecoder().decode(JackShortcut.self, from: data), binding == .defaultCenter {
+            defaults.set(try? JSONEncoder().encode(JackShortcut.defaultShortcut), forKey: "summonShortcutBinding")
+        }
+        defaults.set(1, forKey: marker)
+    }
     init(prefix: String = "summon") {
         bindingKey = prefix + "ShortcutBinding"
         enabledKey = prefix + "ShortcutEnabled"
@@ -181,6 +193,33 @@ final class KeyboardShortcutController {
         preferences.enabledValue = enabled
         return true
     }
+    // All controllers are paused by the shared settings screen. Register the
+    // entire candidate set before writing any preferences, so conflicts cannot
+    // partially save changes and swapped combinations are supported.
+    static func applyTogether(_ changes: [(controller: KeyboardShortcutController, binding: JackShortcut, enabled: Bool)]) -> (index: Int, message: String)? {
+        for (index, change) in changes.enumerated() {
+            guard change.controller.paused else { return (index, "Close and reopen Keyboard Shortcuts, then try again.") }
+            guard change.binding.isValid else { return (index, "Include Control, Option, or Command with a key.") }
+            if change.enabled && changes[..<index].contains(where: { $0.enabled && $0.binding == change.binding }) {
+                return (index, "Choose a different combination; another enabled Jack shortcut already uses this one.")
+            }
+        }
+        changes.forEach { $0.controller.unregister() }
+        for (index, change) in changes.enumerated() where change.enabled {
+            let controller = change.controller
+            guard controller.installHandler(), controller.register(change.binding) else {
+                let message = controller.errorMessage ?? "macOS couldn’t activate this shortcut."
+                changes.forEach { $0.controller.unregister() }
+                return (index, message)
+            }
+        }
+        for change in changes {
+            change.controller.preferences.bindingData = try? JSONEncoder().encode(change.binding)
+            change.controller.preferences.enabledValue = change.enabled
+            change.controller.errorMessage = nil
+        }
+        return nil
+    }
     func pauseForSettings() { paused = true; unregister() }
     func resumeAfterSettings() { paused = false; if enabled { _ = start() } }
     private func unregister() {
@@ -193,4 +232,11 @@ final class KeyboardShortcutController {
         handler = nil
     }
     deinit { stop() }
+}
+
+enum JackShortcutPlacement {
+    static func centered(size: NSSize, in visibleFrame: NSRect) -> NSPoint {
+        NSPoint(x: max(visibleFrame.minX, visibleFrame.midX - size.width / 2),
+                y: max(visibleFrame.minY, visibleFrame.midY - size.height / 2))
+    }
 }

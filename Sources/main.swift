@@ -317,7 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     }
     let prompt = NSTextField(string: "")
     private let clearInputButton = NSButton()
-    let result = NSTextView()
+    let result = ResponseTextView(frame: .zero, textContainer: nil)
     private let responseActions = NSStackView()
     private let copyReplyButton = NSButton()
     private let stopReplyButton = NSButton()
@@ -345,10 +345,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     let shortcutSpeech = ShortcutSpeech()
     let codexReply = CodexReply()
     let claudeReply = ClaudeReply()
+    private let chatGPTConnection = ChatGPTConnection()
+    private let codexUsage = CodexUsage()
+    private let codexUsageView = CodexUsageView()
+    private var usageTimer: Timer?
+    private let chatGPTUsageRow = NSStackView()
+    private let chatGPTUnlockButton = NSButton(title: "Unlock ChatGPT Connection", target: nil, action: nil)
+    private let chatGPTUsageLabel = NSTextField(labelWithString: "")
+    private lazy var chatGPTConnectionView: ChatGPTConnectionView = {
+        let view = ChatGPTConnectionView(connection: chatGPTConnection)
+        view.useShortcuts = { [weak self] in
+            guard let self, !self.chatGPTConnection.isBusy else { return }
+            self.navigation?.reset()
+            let item = NSMenuItem(); item.representedObject = AIBackend.chatGPT.rawValue
+            self.selectAssistant(item)
+        }
+        return view
+    }()
     @objc private func claudeSetup() { ClaudeReply.showSetup() }
+    @objc private func chatGPTConnectionSettings() {
+        guard !requestIsRunning && !speechInput.isActive else { return }
+        chatGPTConnectionView.show()
+    }
+    @objc private func unlockChatGPTConnection() {
+        guard !requestIsRunning && !speechInput.isActive else { return }
+        if chatGPTConnection.unlock() {
+            if chatGPTConnection.canUsePlan { chatGPTConnection.refreshModels() }
+            else { chatGPTConnectionView.show() }
+        }
+    }
+    private func prepareChatGPTConnection() -> Bool {
+        guard chatGPTConnection.loadIfNeeded() else {
+            result.string = chatGPTConnection.status
+            updateRestingAnimation(); updateButtons()
+            return false
+        }
+        return true
+    }
+    @objc private func chatGPTManageUsage() { NSWorkspace.shared.open(ChatGPTSignInProtocol.usageURL) }
+    private func refreshChatGPTConnection() {
+        chatGPTConnectionView.refreshState()
+        chatGPTUsageLabel.stringValue = chatGPTConnection.usageSummary
+        chatGPTUnlockButton.isHidden = !chatGPTConnection.needsUnlock
+        chatGPTUnlockButton.isEnabled = !chatGPTConnection.isBusy && !speechInput.isActive
+        chatGPTUsageRow.isHidden = AIBackend.selected != .chatGPTSignIn
+        if AIBackend.selected == .chatGPTSignIn && !chatGPTConnection.isActive {
+            let changedAccount = conversation.route != conversationRoute
+            conversation.selectRoute(conversationRoute)
+            if changedAccount { lastAIRequest = nil }
+        }
+        if runButton != nil { updateButtons() }
+    }
     let startAtLogin = StartAtLogin()
     let appUpdates = AppUpdates()
     private let heldItems = HoldThisStore()
+    private lazy var holdThisService: HoldThisService = {
+        let service = HoldThisService(store: heldItems)
+        service.reveal = { [weak self] in
+            guard let self else { return }
+            if self.navigation?.isEditing != true { self.navigation?.reset() }
+            self.showControls()
+        }
+        return service
+    }()
     private lazy var holdThisShelf = HoldThisShelf(store: heldItems)
     private let clipboardHistory = ClipboardHistory()
     private lazy var clipboardWindow: ClipboardWindow = {
@@ -367,6 +426,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private var historyButton: NSButton!
     private lazy var conversationWindow: ConversationWindow = {
         let window = ConversationWindow(memory: conversation)
+        window.openLink = { [weak self] url in self?.result.openLink(url) }
+        window.holdContent = { [weak self] content in self?.result.holdContent?(content) }
         window.newConversation = { [weak self] in self?.newConversation() }
         window.toggleMemory = { [weak self] in self?.toggleConversationMemory() }
         window.isBusy = { [weak self] in self.map { $0.requestIsRunning || $0.speechInput.isActive } ?? true }
@@ -378,16 +439,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         let backend = AIBackend.selected
         switch backend {
         case .claude, .codex: return backend.rawValue + ":"
+        case .chatGPTSignIn: return backend.rawValue + ":" + chatGPTConnection.route
         case .chatGPT: return backend.rawValue + ":" + AIBackend.chatGPTShortcut
         case .shortcut: return backend.rawValue + ":" + shortcutName
         }
     }
     private let keyboardShortcut = KeyboardShortcutController()
+    private let centerShortcut = KeyboardShortcutController(preferences: SavedShortcutPreferences(prefix: "center"),
+                                                             defaultBinding: .defaultCenter, signature: 0x414A4843)
     private let hideShortcut = KeyboardShortcutController(preferences: SavedShortcutPreferences(prefix: "hide"),
                                                            defaultBinding: .defaultHide, signature: 0x414A4844)
     private let headerLogo = BubbleLogoView()
     private let commandShortcut = ShortcutRunner()
     private var pendingShortcutReveal = false
+    private var pendingShortcutCenter = false
     let mediaControls = MediaControls()
     let nowPlaying = NowPlaying()
     private let playbackBadge = PlaybackBadge()
@@ -408,7 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private var nativeOpenInProgress = false
     private var updateCommandInProgress = false
     private var generatingReply: Bool {
-        return replyShortcut.isActive || codexReply.isActive || claudeReply.isActive
+        return replyShortcut.isActive || codexReply.isActive || claudeReply.isActive || chatGPTConnection.isActive
     }
     private var actionRequestIsRunning: Bool { generatingReply || commandShortcut.isActive || nativeOpenInProgress }
     private var requestIsRunning: Bool { actionRequestIsRunning || updateCommandInProgress }
@@ -419,11 +484,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     private var revealControlsAfterStartup = false
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = JackAppearance.selected.appearance
+        chatGPTConnection.didChange = { [weak self] in self?.refreshChatGPTConnection() }
+        codexUsage.didChange = { [weak self] in
+            guard let self else { return }
+            self.codexUsageView.update(self.codexUsage)
+            self.responseLayout?.scheduleResize()
+        }
+        codexUsageView.refresh = { [weak self] in self?.codexUsage.refresh(force: true) }
+        usageTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self, self.controls.isShown else { return }
+            self.codexUsageView.update(self.codexUsage); self.codexUsage.refresh()
+        }
         appUpdates.quitForUpdate = { [weak self] in self?.quit() }
         appUpdates.canInstall = { [weak self] in
             guard let self = self else { return false }
             if self.petPicker.isBusy { return false }
             // The update command itself must not prevent Install & Restart.
+            if self.chatGPTConnection.isBusy { return false }
             return self.navigation?.isEditing != true && !self.isLaunching && !self.actionRequestIsRunning && !self.favorites.preventsInstallation && !self.mediaControls.isBusy && !self.nowPlaying.isOpeningSource
                 && !self.speechInput.isActive && !self.synthesizer.isSpeaking && !self.shortcutSpeech.isActive
         }
@@ -483,6 +560,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         pet.contentView = view
         (pet as? GrabCursorPanel)?.trackGrabAreas()
         createControls(); configureSpeech()
+        NSApp.servicesProvider = holdThisService
+        if !CommandLine.arguments.contains("--smoke-test") { NSUpdateDynamicServices() }
         favorites.heldSource = heldItems
         favorites.canOpen = { [weak self] in
             guard let self = self else { return false }
@@ -491,6 +570,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         favorites.busyChanged = { [weak self] in self?.updateButtons() }
         conversation.didChange = { [weak self] in self?.refreshConversation() }
         conversation.selectRoute(conversationRoute)
+        if !CommandLine.arguments.contains("--smoke-test") { SavedShortcutPreferences.migrateShowDefault() }
         keyboardShortcut.onPress = { [weak self] in self?.summonWithKeyboard() }
         keyboardShortcut.start()
         hideShortcut.onPress = { [weak self] in
@@ -498,6 +578,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             self?.hidePet()
         }
         hideShortcut.start()
+        centerShortcut.onPress = { [weak self] in self?.centerWithKeyboard() }
+        centerShortcut.start()
         petPicker.canChange = { [weak self] in self?.isLaunching == false }
         petPicker.showSprites = { [weak self] in self?.petView.installSprites($0) }
         prepareSprites()
@@ -550,6 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
                     self.showControls()
                     UserDefaults.standard.set(true, forKey: "hasLaunched")
                 }
+                if self.pendingShortcutCenter { self.pendingShortcutCenter = false; self.centerWithKeyboard() }
                 if self.pendingShortcutReveal { self.pendingShortcutReveal = false; self.petView.flashLocator() }
             }
             if CommandLine.arguments.contains("--smoke-test") {
@@ -660,6 +743,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         prompt.setContentHuggingPriority(.defaultLow, for: .horizontal)
         stack.addArrangedSubview(messageRow)
         messageRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        chatGPTUsageLabel.font = .systemFont(ofSize: 11)
+        chatGPTUsageLabel.textColor = .secondaryLabelColor
+        chatGPTUsageLabel.lineBreakMode = .byTruncatingTail
+        chatGPTUsageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        chatGPTUsageLabel.toolTip = "Completed replies in Jack on this Mac since connecting or launching. This is not your remaining ChatGPT allowance."
+        let usageButton = NSButton(title: "Manage Usage", target: self, action: #selector(chatGPTManageUsage))
+        usageButton.controlSize = .small; usageButton.font = .systemFont(ofSize: 11)
+        chatGPTUsageRow.spacing = 8
+        chatGPTUsageRow.addArrangedSubview(chatGPTUsageLabel)
+        chatGPTUsageRow.addArrangedSubview(NSView())
+        chatGPTUnlockButton.target = self; chatGPTUnlockButton.action = #selector(unlockChatGPTConnection)
+        chatGPTUnlockButton.bezelStyle = .rounded; chatGPTUnlockButton.controlSize = .small
+        chatGPTUnlockButton.font = .systemFont(ofSize: 11)
+        chatGPTUnlockButton.isHidden = !chatGPTConnection.needsUnlock
+        chatGPTUsageRow.addArrangedSubview(chatGPTUnlockButton)
+        chatGPTUsageRow.addArrangedSubview(usageButton)
+        chatGPTUsageRow.isHidden = AIBackend.selected != .chatGPTSignIn
+        chatGPTUsageLabel.stringValue = chatGPTConnection.usageSummary
+        stack.addArrangedSubview(chatGPTUsageRow)
+        chatGPTUsageRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         let buttons = NSStackView(); buttons.spacing = 10
         runButton = NSButton(title: "Enter", target: self, action: #selector(runShortcut))
         runButton.keyEquivalent = "\r"
@@ -670,8 +773,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         dictateButton.toolTip = "Dictate a request, then click Done & Send to hear Jack’s reply."
         buttons.addArrangedSubview(speakButton)
         buttons.addArrangedSubview(dictateButton)
-        // Keep the message actions together; utility buttons have their own row.
-        stack.addArrangedSubview(buttons)
+        // Keep the two button rows together beside the compact usage panel.
         let clipboardButton = NSButton(title: "Clipboard", target: self, action: #selector(showClipboard))
         clipboardButton.image = JackIcon.image(named: "doc.on.clipboard", accessibilityDescription: nil)
         clipboardButton.imagePosition = .imageLeading
@@ -681,7 +783,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         historyButton.imagePosition = .imageLeading
         historyButton.toolTip = "Review this session’s conversation with Jack."
         let utilities = NSStackView(views: [clipboardButton, historyButton, favorites.button]); utilities.spacing = 10
-        stack.addArrangedSubview(utilities)
+        let actionRows = NSStackView(views: [buttons, utilities])
+        actionRows.orientation = .vertical; actionRows.alignment = .leading; actionRows.spacing = 12
+        let actionArea = NSStackView(views: [actionRows, NSView(), codexUsageView])
+        actionArea.orientation = .horizontal; actionArea.alignment = .centerY; actionArea.spacing = 8
+        codexUsageView.update(codexUsage)
+        stack.addArrangedSubview(actionArea)
+        actionArea.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         inputRow.spacing = 10
         inputLabel.font = .systemFont(ofSize: 11)
         inputLabel.lineBreakMode = .byTruncatingMiddle
@@ -696,6 +804,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         inputRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.borderType = .noBorder; scroll.drawsBackground = false
         scroll.scrollerStyle = .overlay; scroll.autohidesScrollers = true
+        result.openLink = { url in
+            if ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+                NativeLocationOpener.openInDefaultBrowser(url) { outcome in
+                    if case .failure(let error) = outcome {
+                        let alert = NSAlert(error: error)
+                        alert.messageText = "Couldn’t open link"
+                        alert.presentInJack { _ in }
+                    }
+                }
+            } else { NSWorkspace.shared.open(url) }
+        }
+        result.holdContent = { [weak self] content in
+            guard let self else { return }
+            let transfer = NSPasteboard.withUniqueName()
+            defer { transfer.releaseGlobally() }
+            guard content.write(to: transfer) else { return }
+            do { try self.heldItems.accept(transfer) }
+            catch { self.holdThisShelf.present(error) }
+        }
         result.isEditable = false; result.isSelectable = true; result.drawsBackground = false; result.font = .systemFont(ofSize: 15); result.textContainerInset = NSSize(width: 10, height: 10)
         result.autoresizingMask = [.width]; result.isVerticallyResizable = true
         result.textContainer?.widthTracksTextView = true
@@ -834,9 +961,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         replyShortcut.cancel()
         codexReply.cancel()
         claudeReply.cancel()
+        chatGPTConnection.cancel()
+        chatGPTConnection.cancelSignIn()
+        codexUsage.stop(); usageTimer?.invalidate()
         clipboardHistory.stop()
         favorites.cancel()
         keyboardShortcut.stop()
+        centerShortcut.stop()
         hideShortcut.stop()
         commandShortcut.cancel()
         petView?.stopLocator()
@@ -865,6 +996,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     @objc func hidePet() {
         revealPetAfterStartup = false
         revealControlsAfterStartup = false
+        pendingShortcutCenter = false
+        pendingShortcutReveal = false
         launchLoadingWindow?.close()
         petView?.stopLocator()
         pet?.orderOut(nil); closeBubble(); petView?.cancelPointerInteraction()
@@ -874,6 +1007,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
     @objc func showControls() {
         if isLaunching { revealControlsAfterStartup = true; showPet(); return }
         showPet()
+        codexUsageView.update(codexUsage); codexUsage.refresh()
         NSApp.activate(ignoringOtherApps: true)
         responseLayout?.resizeNow()
         if !controls.isShown {
@@ -908,12 +1042,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         showControls()
         petView.flashLocator()
     }
-    @objc private func keyboardShortcutSettings() {
-        let settings = KeyboardShortcutSettings()
-        settings.run(controller: keyboardShortcut, other: hideShortcut)
+    private func centerWithKeyboard() {
+        guard NSApp.modalWindow == nil else { return }
+        if isLaunching { pendingShortcutCenter = true; showControls(); return }
+        guard let pet, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+                ?? NSScreen.main ?? pet.screen ?? NSScreen.screens.first else { return }
+        petView.cancelPointerInteraction()
+        pet.setFrameOrigin(JackShortcutPlacement.centered(size: pet.frame.size, in: screen.visibleFrame))
+        pet.saveFrame(usingName: petFrameName)
+        showControls()
+        petView.flashLocator()
     }
-    @objc private func hideShortcutSettings() {
-        KeyboardShortcutSettings().run(controller: hideShortcut, other: keyboardShortcut, hide: true)
+    @objc private func keyboardShortcutSettings() {
+        KeyboardShortcutSettings().run(show: keyboardShortcut, center: centerShortcut, hide: hideShortcut)
     }
     @objc private func changeLogo(_ sender: NSMenuItem) {
         guard let style = sender.representedObject as? String else { return }
@@ -1012,8 +1153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             actionMenuItem("Remove After Dragging Out", action: #selector(toggleRemoveAfterDrag))]))
         menu.addItem(actionMenuItem("Clipboard History…", action: #selector(showClipboard)))
         menu.addItem(submenuItem("Speech & Input", items: [
-            actionMenuItem("Keyboard Shortcut…", action: #selector(keyboardShortcutSettings)),
-            actionMenuItem("Hide Apple Jack Shortcut…", action: #selector(hideShortcutSettings)),
+            actionMenuItem("Keyboard Shortcuts…", action: #selector(keyboardShortcutSettings)),
             actionMenuItem("Voice…", action: #selector(voiceSettings)),
             alwaysSpeakMenuItem(),
             clearInputMenuItem(),
@@ -1214,6 +1354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             menu.addItem(item)
         }
         menu.addItem(.separator())
+        menu.addItem(actionMenuItem("ChatGPT Connection…", action: #selector(chatGPTConnectionSettings)))
         let settings = NSMenuItem(title: "ChatGPT Shortcut Settings…", action: #selector(chatGPTSettings), keyEquivalent: "")
         settings.target = self; menu.addItem(settings)
         menu.addItem(actionMenuItem("Claude Code Setup…", action: #selector(claudeSetup)))
@@ -1226,17 +1367,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
               let raw = sender.representedObject as? String, let backend = AIBackend(rawValue: raw) else { return }
         stopSpeaking()
         AIBackend.selected = backend
+        if backend == .chatGPTSignIn { chatGPTConnection.loadIfNeeded() }
         conversation.selectRoute(conversationRoute)
         for item in sender.menu?.items ?? [] where item.action == #selector(selectAssistant) {
             item.state = (item.representedObject as? String) == backend.rawValue ? .on : .off
         }
+        refreshChatGPTConnection()
+        if backend == .chatGPTSignIn && !chatGPTConnection.canUsePlan { chatGPTConnectionView.show() }
     }
     @objc func chatGPTSettings() {
         guard !requestIsRunning else { return }
         if speechInput.isActive { cancelVoice() }
         let alert = NSAlert()
         alert.messageText = "ChatGPT Shortcut Settings"
-        alert.informativeText = "Jack sends your request to this shortcut when AI Assistant → ChatGPT is selected. Use your copy of Ask Apple Jack with the Use Model action set to ChatGPT, and keep Stop and Output → Response at the end."
+        alert.informativeText = "Jack sends your request to this shortcut when AI Assistant → ChatGPT (Shortcuts) is selected. Use your copy of Ask Apple Jack with the Use Model action set to ChatGPT, and keep Stop and Output → Response at the end."
         let field = NSTextField(string: AIBackend.chatGPTShortcut)
         field.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
         field.setAccessibilityLabel("ChatGPT shortcut name")
@@ -1291,9 +1435,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             return !isLaunching && navigation?.isEditing != true
         }
         if menuItem.action == #selector(keyboardShortcutSettings) {
-            menuItem.toolTip = keyboardShortcut.errorMessage
-                ?? (keyboardShortcut.enabled ? "Show Apple Jack: \(keyboardShortcut.binding.display)" : "Keyboard shortcut is off.")
-            return !isLaunching
+            menuItem.toolTip = "Customize Show, Center & Show, and Hide Apple Jack in one screen."
+            return !isLaunching && navigation?.isEditing != true
         }
         if menuItem.action == #selector(selectAppearance) {
             menuItem.state = (menuItem.representedObject as? String) == JackAppearance.selected.rawValue ? .on : .off
@@ -1317,6 +1460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             return !requestIsRunning && !speechInput.isActive
         }
         if menuItem.action == #selector(chatGPTSettings) { return !requestIsRunning }
+        if menuItem.action == #selector(chatGPTConnectionSettings) { return !requestIsRunning && !speechInput.isActive }
         if menuItem.action == #selector(toggleAlwaysSpeakResponses) {
             menuItem.state = alwaysSpeakResponses ? .on : .off
             return true
@@ -1402,8 +1546,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         inputRow.isHidden = !capturing
         runButton.isEnabled = !capturing && !busy
         speakButton.isEnabled = !capturing && !busy
+        if AIBackend.selected == .chatGPTSignIn && chatGPTConnection.isBusy && !chatGPTConnection.isActive {
+            runButton.isEnabled = false; speakButton.isEnabled = false
+        }
         speakButton.title = speaking ? "Stop Speaking" : "Speak Response"
         dictateButton.isEnabled = !busy
+        if AIBackend.selected == .chatGPTSignIn && chatGPTConnection.isBusy && !chatGPTConnection.isActive {
+            dictateButton.isEnabled = false
+        }
         dictateButton.title = capturing ? (speechInput.canFinish ? "Done & Send" : "Cancel") : "Speak to Jack"
         prompt.isEditable = !capturing
         clearInputButton.isEnabled = !capturing
@@ -1520,6 +1670,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             replyShortcut.cancel()
             codexReply.cancel()
             claudeReply.cancel()
+            chatGPTConnection.cancel()
             conversation.finish(request.exchange, reply: "", succeeded: false)
             result.string = "Response stopped."
             updateRestingAnimation()
@@ -1527,8 +1678,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         stopSpeaking()
     }
     @objc private func retryResponse() {
-        guard !requestIsRunning, !speechInput.isActive, let request = lastAIRequest,
-              let exchange = conversation.retry(request.exchange) else { return }
+        guard !requestIsRunning, !speechInput.isActive, let request = lastAIRequest else { return }
+        if request.backend == .chatGPTSignIn && !prepareChatGPTConnection() { return }
+        guard let exchange = conversation.retry(request.exchange) else { return }
         stopSpeaking()
         reactionReset?.cancel()
         petView.play(.running)
@@ -1603,6 +1755,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
         submitAIRequest(text, backend: backend, shortcut: shortcut, speakReply: speakReply, generation: replyGeneration)
     }
     private func submitAIRequest(_ text: String, backend: AIBackend, shortcut: String, speakReply: Bool, generation replyGeneration: Int, preservedDraft: String? = nil) {
+        if backend == .chatGPTSignIn && !prepareChatGPTConnection() { return }
         // Clipboard transformations use their own source, without unrelated
         // earlier requests. Still remember the result for ordinary follow-ups.
         let exchange = conversation.begin(text, route: conversationRoute, includeHistory: preservedDraft == nil)
@@ -1642,12 +1795,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AVS
             self.finishRequest(message: message, succeeded: succeeded, prompt: exchange.text,
                                speakReply: speakReply, generation: generation, preservedDraft: preservedDraft)
         }
-        if backend == .claude {
+        if backend == .chatGPTSignIn {
+            result.string = "Asking ChatGPT…"
+            chatGPTConnection.run(exchange.input, completion: complete)
+        } else if backend == .claude {
             result.string = "Asking Claude…"
             claudeReply.run(exchange.input, completion: complete)
         } else if backend == .codex {
             result.string = "Asking Codex…"
-            codexReply.run(exchange.input, completion: complete)
+            codexReply.run(exchange.input) { [weak self] outcome in
+                complete(outcome)
+                self?.codexUsage.refresh(force: true)
+            }
         } else {
             result.string = backend == .chatGPT ? "Asking ChatGPT…" : "Running \(shortcut)…"
             replyShortcut.requestReply(shortcut: shortcut, input: exchange.input, completion: complete)

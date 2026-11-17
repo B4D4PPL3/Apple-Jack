@@ -4,13 +4,13 @@
     <title>Apple Jack Public Updates</title>
     <link>https://github.com/B4D4PPL3/Apple-Jack</link>
     <item>
-      <title>Apple Jack 0.56</title>
-      <pubDate>Wed, 11 Nov 2026 21:07:57 +0000</pubDate>
-      <description>Apple Jack 0.56 renames Pets to Companions and adds Apple Jack (Classic), the original AppleJack Pixel character, as a built-in companion alongside Apple Jack and Fonz. Open Menu → Appearance &amp; Character → Companions to preview and choose. Existing imported characters remain available. The illustrated Setup Guide includes the new choices. Claude remains Beta. This is an unnotarized preview.</description>
-      <sparkle:version>143</sparkle:version>
-      <sparkle:shortVersionString>0.56</sparkle:shortVersionString>
+      <title>Apple Jack 0.59</title>
+      <pubDate>Tue, 17 Nov 2026 15:40:08 +0000</pubDate>
+      <description>Apple Jack 0.59 adds an optional ChatGPT plan connection, compact Codex usage, and three customizable shortcuts for showing, centering, and hiding Jack. Click links in answers or conversation history. Use Add to Hold This on a link, selected text, or through macOS Services. This public preview supports Apple silicon and Intel on macOS 13 or later.</description>
+      <sparkle:version>153</sparkle:version>
+      <sparkle:shortVersionString>0.59</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <enclosure sparkle:edSignature="TMo33OKWXn/GFbHlBW8UK39I7OxFVe80q5GYub0PhprlIzPu+SOJ17mUa9469Iv8KPeweR3sdJ9w834OCxzlCg==" url="https://github.com/B4D4PPL3/Apple-Jack/releases/download/v0.56-preview.1/Apple-Jack-0.56-preview-macOS.dmg" length="15561160" type="application/octet-stream" />
+      <enclosure sparkle:edSignature="QaaTtBQttGgckCvKmzBaWrj1el0YvCApjegmRzXYPh/K9lXcJCkhHQr0kFVEI/HZTlKlUBj5GuF49DkrGh5LDg==" url="https://github.com/B4D4PPL3/Apple-Jack/releases/download/v0.59-preview.1/Apple-Jack-0.59-preview-macOS.dmg" length="15918792" type="application/octet-stream" />
     </item>
   </channel>
 </rss>

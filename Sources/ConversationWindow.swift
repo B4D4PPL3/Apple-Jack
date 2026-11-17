@@ -6,7 +6,7 @@ final class ConversationWindow: NSObject {
     private let scroll = NSScrollView()
     private let storage = NSTextStorage()
     private let bubbles = BubbleTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
-    private let transcript: NSTextView
+    private let transcript: ResponseTextView
     private var turnStarts: [UUID: Int] = [:]
     private var firstTurnID: UUID?
     private let status = NSTextField(wrappingLabelWithString: "")
@@ -14,6 +14,14 @@ final class ConversationWindow: NSObject {
     private let assistantButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let newButton = NSButton(title: "New Conversation", target: nil, action: nil)
     private let memory: ConversationMemory
+    var holdContent: ((ResponseHoldContent) -> Void)? {
+        get { transcript.holdContent }
+        set { transcript.holdContent = newValue }
+    }
+    var openLink: (URL) -> Void {
+        get { transcript.openLink }
+        set { transcript.openLink = newValue }
+    }
     var newConversation: (() -> Void)?
     var toggleMemory: (() -> Void)?
     var isBusy: (() -> Bool)?
@@ -26,7 +34,9 @@ final class ConversationWindow: NSObject {
         storage.addLayoutManager(layout)
         layout.addTextContainer(bubbles)
         bubbles.lineFragmentPadding = 0
-        transcript = NSTextView(frame: .zero, textContainer: bubbles)
+        transcript = ResponseTextView(frame: .zero, textContainer: bubbles)
+        transcript.usesMessageBubbleColors = true
+        transcript.linkTextAttributes = [.underlineStyle: NSUnderlineStyle.single.rawValue]
         super.init()
     }
     func show() {
@@ -113,6 +123,7 @@ final class ConversationWindow: NSObject {
         }
         bubbles.messages = messages
         storage.setAttributedString(text)
+        transcript.refreshLinks()
         transcript.needsDisplay = true
         if let container = transcript.textContainer { transcript.layoutManager?.ensureLayout(for: container) }
         if follow {
