@@ -6,7 +6,7 @@ Choose Apple Jack, Apple Jack (Classic), or Fonz, or bring a companion you desig
 
 ![Apple Jack stands with his arms crossed beneath a pointed speech bubble with the Classic logo, Music controls, and a playlist conversation. Control–Shift–Space shows Jack.](Docs/Screenshots/desktop.jpg)
 
-**[Download the 0.56 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.56-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
+**[Download the 0.59 preview](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.59-preview.1)** · macOS 13 or later · Apple silicon and Intel · [Installation instructions](#install)
 
 ## Feature gallery
 
@@ -100,15 +100,15 @@ Starting with 0.55, choose **Menu → Updates → Check for Updates…**, or typ
 
 ## Install
 
-Apple Jack 0.56 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
+Apple Jack 0.59 is available as an **unnotarized preview** for macOS Ventura 13 or newer on Intel and Apple silicon.
 
-1. Download `Apple-Jack-0.56-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.56 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.56-preview.1).
+1. Download `Apple-Jack-0.59-preview-macOS.dmg` under **Assets** on the [Apple Jack 0.59 preview release](https://github.com/B4D4PPL3/Apple-Jack/releases/tag/v0.59-preview.1).
 2. Open the disk image, drag **Apple Jack Public** into **Applications**, and open it from there.
 3. If macOS says it cannot verify the developer and you trust this download, open **System Settings → Privacy & Security** and choose **Open Anyway** for Apple Jack Public. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
 
-**Already on 0.55:** choose **Menu → Updates → Check for Updates…** or type `update`, then follow the update window to install 0.56 and restart.
+**Already on 0.55 or later:** choose **Menu → Updates → Check for Updates…** or type `update`, then follow the update window to install 0.59 and restart.
 
-**Moving from 0.54 or earlier:** install 0.56 manually once—quit Apple Jack Public and replace the previous copy in Applications. Your saved items and preferences stay on this Mac. Future public versions can be installed through **Menu → Updates → Check for Updates…**. The illustrated Setup Guide is available from Jack’s menu.
+**Moving from 0.54 or earlier:** install 0.59 manually once—quit Apple Jack Public and replace the previous copy in Applications. Your saved items and preferences stay on this Mac. Future public versions can be installed through **Menu → Updates → Check for Updates…**. The illustrated Setup Guide is available from Jack’s menu.
 
 Apple Intelligence features require a supported Mac and macOS version. Jack can also use a text-in, text-out shortcut or a separately installed, signed-in Codex CLI. For Claude, open **Menu → AI Assistant → Claude Code Setup…**, sign in through Claude Code with an eligible account, and choose **Claude (Beta)**. Replies appear in Jack’s bubble using your Claude Code account. Local desktop features work without an AI account.
 
